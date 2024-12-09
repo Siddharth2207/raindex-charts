@@ -1,4 +1,3 @@
-// src/DepthChart.js
 import React, { useEffect, useRef } from 'react';
 import { Chart } from 'chart.js/auto';
 
@@ -11,6 +10,9 @@ const DepthChart = ({ orders }) => {
     if (chartInstanceRef.current) {
       chartInstanceRef.current.destroy();
     }
+
+    // Handle empty orders
+    if (orders.length === 0) return;
 
     // Separate and sort buy/sell orders
     const buyOrders = orders.filter(o => o.side === 'buy').sort((a, b) => b.ioRatio - a.ioRatio);
@@ -39,19 +41,23 @@ const DepthChart = ({ orders }) => {
             label: 'Buy Depth',
             data: buyDepthData,
             borderColor: 'green',
+            backgroundColor: 'rgba(0, 128, 0, 0.2)', // Optional fill color
             stepped: true,
-            fill: false
+            fill: true, // Add fill under the line
           },
           {
             label: 'Sell Depth',
             data: sellDepthData,
             borderColor: 'red',
+            backgroundColor: 'rgba(255, 0, 0, 0.2)', // Optional fill color
             stepped: true,
-            fill: false
+            fill: true, // Add fill under the line
           }
         ]
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         scales: {
           x: {
             type: 'linear',
@@ -78,7 +84,11 @@ const DepthChart = ({ orders }) => {
     };
   }, [orders]);
 
-  return <canvas ref={chartRef} />;
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '400px' }}>
+      <canvas ref={chartRef}></canvas>
+    </div>
+  );
 };
 
 export default DepthChart;
