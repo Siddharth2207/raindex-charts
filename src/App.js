@@ -246,11 +246,13 @@ function App() {
         <label>
           Network:
           <select
-            value={network}
+            value={network || ''} // Ensure the dropdown has no selected value initially
             onChange={(e) => handleNetworkChange(e.target.value)}
             style={{ marginLeft: '10px', width: '300px' }}
           >
-            {/* Dropdown options for networks */}
+            <option value="" disabled>
+              Select a Network
+            </option>
             <option value="flare">Flare</option>
             <option value="base">Base</option>
             <option value="sepolia">Sepolia</option>
