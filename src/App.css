@@ -1,0 +1,80 @@
+/* General Container Styling */
+.container {
+    width: 100%;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+  }
+  
+  /* Header Styling */
+  .header {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  
+  /* Form Group Styling */
+  .form-group {
+    margin-bottom: 15px;
+  }
+  
+  /* Label Styling */
+  .form-label {
+    display: block;
+    margin: 5px;
+    padding: 10px;
+    font-size: 1rem;
+    font-weight: 500;
+  }
+  
+  /* Select Dropdown Styling */
+  .form-select {
+    width: 100%;
+    max-width: 400px;
+    padding: 10px;
+    margin: 5px;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  
+  /* Input Field Styling */
+  .form-input {
+    width: 100%;
+    max-width: 400px;
+    padding: 10px;
+    margin: 5px;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  
+  /* Button Styling */
+  .btn {
+    display: inline-block;
+    padding: 10px 20px;
+    font-size: 1rem;
+    color: #fff;
+    background-color: #007bff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .btn:hover {
+    background-color: #0056b3;
+  }
+  
+  /* Chart Container Styling */
+    .chart-container {
+        width: 90%; /* Restrict width to 80% of the parent container */
+        max-width: 900px; /* Set a maximum width */
+        height: 500px; /* Maintain the height */
+        margin: 20px auto; /* Center the chart horizontally */
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        background-color: #f9f9f9;
+    }
+  
+  

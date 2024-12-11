@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import DepthChart from './DepthChart';
+import { SciChartSurface, NumericAxis, FastLineRenderableSeries, XyDataSeries, EAutoRange } from 'scichart';
 import axios from 'axios';
 import { ethers } from 'ethers';
+import './App.css';
+
+SciChartSurface.loadWasmFromCDN();
 
 const IO = "(address token, uint8 decimals, uint256 vaultId)";
 const EvaluableV3 = "(address interpreter, address store, bytes bytecode)";
@@ -33,7 +36,6 @@ const config = {
     mainnet: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-mainnet/2024-10-25-af6a/gn',
   },
 };
-
 
 const orderbookAbi = [
   `function quote(${QuoteConfig} calldata quoteConfig) external view returns (bool exists, uint256 outputMax, uint256 ioRatio)`
@@ -85,11 +87,11 @@ const orderQuery = `query OrdersListQuery($skip: Int = 0, $first: Int = 1000) {
 function App() {
   const [orders, setOrders] = useState([]);
   const [network, setNetwork] = useState();
-  const [networkProvider, setNetworkProvider] = useState(); 
-  const [networkEndpoint, setNetworkEndpoint] = useState(); 
+  const [networkProvider, setNetworkProvider] = useState();
+  const [networkEndpoint, setNetworkEndpoint] = useState();
   const [baseToken, setBaseToken] = useState();
   const [quoteToken, setQuoteToken] = useState();
-   
+
 
   async function getCombinedOrders(orders, baseToken, quoteToken) {
     let combinedOrders = [];
@@ -212,27 +214,100 @@ function App() {
     return combinedOrders.filter(order => {return order.outputAmount > 0});
   }
 
-  async function fetchOrders() { 
-
-    console.log("network : ", network)
-    console.log("baseToken : ", baseToken)
-    console.log("quoteToken : ", quoteToken)
-
-    
+  async function fetchOrders() {
     try {
-      // Fetch order data via GraphQL
+      // Fetch orders from GraphQL
       const queryResult = await axios.post(networkEndpoint, { query: orderQuery });
       const orders = queryResult.data.data.orders;
       const sampleOrders = await getCombinedOrders(orders, baseToken, quoteToken);
 
-      console.log(JSON.stringify(sampleOrders,null,2))
-      
       setOrders(sampleOrders);
+      renderDepthChart(sampleOrders);
     } catch (error) {
-      console.error("Error fetching orders:", error);
+      console.error('Error fetching orders:', error);
     }
   }
-   // Update provider and endpoint when network changes
+
+  async function renderDepthChart(orders) {
+  
+    console.log(JSON.stringify(orders,null,2))
+
+    const { sciChartSurface, wasmContext } = await SciChartSurface.create('scichart-root');
+
+    // Add X and Y axes
+    sciChartSurface.xAxes.add(
+      new NumericAxis(wasmContext, {
+        axisTitle: 'Price',
+        autoRange: EAutoRange.Always,
+        labelPrecision: 6,
+      })
+    );
+    sciChartSurface.yAxes.add(
+      new NumericAxis(wasmContext, {
+        axisTitle: 'Cumulative Quantity',
+        autoRange: EAutoRange.Always,
+        labelPrecision: 6,
+      })
+    );
+
+    // Separate and sort buy and sell orders
+    const buyOrders = orders
+      .filter((o) => o.side === 'buy' && o.outputAmount > 0)
+      .sort((a, b) => b.ioRatio - a.ioRatio); // Descending order for buy orders
+    const sellOrders = orders
+      .filter((o) => o.side === 'sell' && o.outputAmount > 0)
+      .sort((a, b) => a.ioRatio - b.ioRatio); // Ascending order for sell orders
+
+    console.log(JSON.stringify(buyOrders,null,2))
+    console.log(JSON.stringify(sellOrders,null,2))
+
+
+
+    // Compute cumulative volumes for buy and sell orders
+    let cumulativeBuy = 0;
+    const buyDepthData = buyOrders.map((order) => {
+      cumulativeBuy += order.outputAmount;
+      return { x: order.ioRatio, y: cumulativeBuy };
+    });
+
+    let cumulativeSell = 0;
+    const sellDepthData = sellOrders.map((order) => {
+      cumulativeSell += order.outputAmount;
+      return { x: order.ioRatio, y: cumulativeSell };
+    });
+
+    console.log(JSON.stringify(buyDepthData,null,2))
+    console.log(JSON.stringify(cumulativeSell,null,2))
+
+
+
+    // Add buy depth series
+    const buySeries = new FastLineRenderableSeries(wasmContext, {
+      dataSeries: new XyDataSeries(wasmContext, {
+        xValues: buyDepthData.map((point) => point.x),
+        yValues: buyDepthData.map((point) => point.y),
+      }),
+      stroke: 'green',
+      strokeThickness: 2,
+      isDigitalLine: true, // Ensures stepped lines for depth chart
+    });
+
+    // Add sell depth series
+    const sellSeries = new FastLineRenderableSeries(wasmContext, {
+      dataSeries: new XyDataSeries(wasmContext, {
+        xValues: sellDepthData.map((point) => point.x),
+        yValues: sellDepthData.map((point) => point.y),
+      }),
+      stroke: 'red',
+      strokeThickness: 2,
+      isDigitalLine: true, // Ensures stepped lines for depth chart
+    });
+
+    // Add the series to the SciChart surface
+    sciChartSurface.renderableSeries.add(buySeries, sellSeries);
+
+  }
+
   const handleNetworkChange = (newNetwork) => {
     setNetwork(newNetwork);
     setNetworkProvider(new ethers.providers.JsonRpcProvider(config.networks[newNetwork].rpc));
@@ -240,62 +315,56 @@ function App() {
   };
 
   return (
-    <div style={{ width: '600px', margin: '0 auto', padding: '20px' }}>
-      <h2>Market Depth Chart</h2>
-      <div style={{ marginBottom: '10px' }}>
-        <label>
-          Network:
+    <div className="container">
+      <h2 className="header">Market Depth Chart</h2>
+      <div className="form-group">
+        <label className="form-label">
+          Network : 
           <select
-            value={network || ''} // Ensure the dropdown has no selected value initially
+            value={network || ''}
             onChange={(e) => handleNetworkChange(e.target.value)}
-            style={{ marginLeft: '10px', width: '300px' }}
+            className="form-select"
           >
             <option value="" disabled>
               Select a Network
             </option>
-            <option value="flare">Flare</option>
-            <option value="base">Base</option>
-            <option value="sepolia">Sepolia</option>
-            <option value="polygon">Polygon</option>
-            <option value="arbitrum">Arbitrum</option>
-            <option value="matchain">Matchain</option>
-            <option value="bsc">BSC</option>
-            <option value="linea">Linea</option>
-            <option value="mainnet">Mainnet</option>
+            {Object.keys(config.networks).map((key) => (
+              <option key={key} value={key}>
+                {key.charAt(0).toUpperCase() + key.slice(1)}
+              </option>
+            ))}
           </select>
         </label>
       </div>
-      <div style={{ marginBottom: '10px' }}>
-        <label>
+      <div className="form-group">
+        <label className="form-label">
           Base Token Address:
           <input
             type="text"
             value={baseToken}
             onChange={(e) => setBaseToken(e.target.value)}
-            style={{ marginLeft: '10px', width: '300px' }}
+            className="form-input"
           />
         </label>
       </div>
-      <div style={{ marginBottom: '10px' }}>
-        <label>
+      <div className="form-group">
+        <label className="form-label">
           Quote Token Address:
           <input
             type="text"
             value={quoteToken}
             onChange={(e) => setQuoteToken(e.target.value)}
-            style={{ marginLeft: '10px', width: '300px' }}
+            className="form-input"
           />
         </label>
       </div>
-
-      <button onClick={fetchOrders}>Generate Depth Chart</button>
-      {orders.length === 0 ? (
-        <p>No orders loaded. Click "Generate Depth Chart" to load data.</p>
-      ) : (
-        <DepthChart orders={orders} />
-      )}
+      <button className="btn" onClick={fetchOrders}>
+        Generate Depth Chart
+      </button>
+      <div id="scichart-root" className="chart-container" />
     </div>
   );
+  
 }
 
 export default App;

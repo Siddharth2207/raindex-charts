@@ -10,7 +10,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-scripts": "5.0.1",
-    "scichart": "^3.5.706"
+    "scichart": "^3.5.708",
+    "scichart-react": "^0.1.9"
   },
   "scripts": {
     "start": "react-scripts start",
