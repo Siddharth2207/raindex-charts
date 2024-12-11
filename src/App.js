@@ -1,5 +1,15 @@
 import React, { useState } from 'react';
-import { SciChartSurface, NumericAxis, FastLineRenderableSeries, XyDataSeries, EAutoRange } from 'scichart';
+import {
+  SciChartSurface,
+  NumericAxis,
+  XyDataSeries,
+  FastMountainRenderableSeries,
+  EAutoRange,
+  TextAnnotation,
+  EHorizontalAnchorPoint,
+  EVerticalAnchorPoint,
+} from "scichart";
+
 import axios from 'axios';
 import { ethers } from 'ethers';
 import './App.css';
@@ -34,6 +44,126 @@ const config = {
     bsc: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-bsc/2024-10-14-63f4/gn',
     linea: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-linea/2024-10-14-12fc/gn',
     mainnet: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-mainnet/2024-10-25-af6a/gn',
+  },
+};
+
+const baseTokenConfig = {
+  IOEN: {
+    symbol: 'IOEN',
+    decimals: 18,
+    network: 'polygon',
+    address: '0xd0e9c8f5fae381459cf07ec506c1d2896e8b5df6'
+  },
+  MNW: {
+    symbol: 'MNW',
+    decimals: 18,
+    network: 'polygon',
+    address: '0x3c59798620e5fec0ae6df1a19c6454094572ab92'
+  },
+  WPOL: {
+    symbol: 'WPOL',
+    network: 'polygon',
+    decimals: 18,
+    address: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270'
+  },
+  QUICK_OLD: {
+    symbol: 'QUICK',
+    network: 'polygon',
+    decimals: 18,
+    address: '0xb5c064f955d8e7f38fe0460c556a72987494ee17'
+  },
+  QUICK_NEW: {
+    symbol: 'QUICK',
+    network: 'polygon',
+    decimals: 18,
+    address: '0x831753dd7087cac61ab5644b308642cc1c33dc13'
+  },
+  TFT: {
+    symbol: 'TFT',
+    decimals: 7,
+    network: 'bsc',
+    address: '0x8f0fb159380176d324542b3a7933f0c2fd0c2bbf'
+  },
+  PAID: {
+    symbol: 'PAID',
+    network: 'base',
+    decimals: 18,
+    address: '0x655a51e6803faf50d4ace80fa501af2f29c856cf'
+  },
+  LUCKY: {
+    symbol: 'LUCKY',
+    network: 'base',
+    decimals: 18,
+    address: '0x2c002ffec41568d138acc36f5894d6156398d539'
+  },
+  WLTH: {
+    symbol: 'WLTH',
+    network: 'base',
+    decimals: 18,
+    address: '0x99b2b1a2adb02b38222adcd057783d7e5d1fcc7d'
+  },
+  WFLR: {
+    symbol: 'WFLR',
+    network: 'flare',
+    decimals: 18,
+    address: '0x1d80c49bbbcd1c0911346656b529df9e5c2f783d'
+  },
+  sFLR: {
+    symbol: 'sFLR',
+    network: 'flare',
+    decimals: 18,
+    address: '0x12e605bc104e93b45e1ad99f9e555f659051c2bb'
+  },
+  PAI: {
+    symbol: 'PAI',
+    network: 'mainnet',
+    decimals: 18,
+    address: '0x13e4b8cffe704d3de6f19e52b201d92c21ec18bd'
+  },
+  LOCK: {
+    symbol: 'LOCK',
+    network: 'mainnet',
+    decimals: 18,
+    address: '0x922d8563631b03c2c4cf817f4d18f6883aba0109'
+  },
+  UMJA: {
+    symbol: 'UMJA',
+    network: 'arbitrum',
+    decimals: 18,
+    address: '0x16A500Aec6c37F84447ef04E66c57cfC6254cF92'
+  },
+};
+
+const quoteTokenConfig = {
+  POLYGON_USDC: {
+    symbol: 'USDC',
+    network: 'polygon',
+    decimals: 18,
+    address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'
+  },
+  BSC_BUSD: {
+    symbol: 'BUSD',
+    network: 'bsc',
+    decimals: 18,
+    address: '0xe9e7cea3dedca5984780bafc599bd69add087d56'
+  },
+  BASE_USDC: {
+    symbol: 'USDC',
+    network: 'base',
+    decimals: 6,
+    address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+  },
+  WFLR: {
+    symbol: 'WFLR',
+    network: 'flare',
+    decimals: 18,
+    address: '0x1d80c49bbbcd1c0911346656b529df9e5c2f783d'
+  },
+  sFLR: {
+    symbol: 'sFLR',
+    network: 'flare',
+    decimals: 18,
+    address: '0x12e605bc104e93b45e1ad99f9e555f659051c2bb'
   },
 };
 
@@ -219,7 +349,10 @@ function App() {
       // Fetch orders from GraphQL
       const queryResult = await axios.post(networkEndpoint, { query: orderQuery });
       const orders = queryResult.data.data.orders;
-      const sampleOrders = await getCombinedOrders(orders, baseToken, quoteToken);
+      const {  address: baseTokenAddress } = baseTokenConfig[baseToken];
+      const {  address: quoteTokenAddress } = quoteTokenConfig[quoteToken];
+
+      const sampleOrders = await getCombinedOrders(orders, baseTokenAddress, quoteTokenAddress);
 
       setOrders(sampleOrders);
       renderDepthChart(sampleOrders);
@@ -228,85 +361,89 @@ function App() {
     }
   }
 
+
   async function renderDepthChart(orders) {
+    const { sciChartSurface, wasmContext } = await SciChartSurface.create("scichart-root");
   
-    console.log(JSON.stringify(orders,null,2))
-
-    const { sciChartSurface, wasmContext } = await SciChartSurface.create('scichart-root');
-
     // Add X and Y axes
     sciChartSurface.xAxes.add(
       new NumericAxis(wasmContext, {
-        axisTitle: 'Price',
+        axisTitle: `${baseToken.toUpperCase()} Price`,
         autoRange: EAutoRange.Always,
         labelPrecision: 6,
       })
     );
     sciChartSurface.yAxes.add(
       new NumericAxis(wasmContext, {
-        axisTitle: 'Cumulative Quantity',
+        axisTitle: `${baseToken.toUpperCase()} Cumulative Quantity`,
         autoRange: EAutoRange.Always,
         labelPrecision: 6,
       })
     );
-
+  
+    // Add the chart title using TextAnnotation
+    sciChartSurface.annotations.add(
+      new TextAnnotation({
+        text: "TFT-BUSD Raindex Market Depth Chart",
+        fontSize: 24, // Larger font for better visibility
+        textColor: "white", // Ensure the text contrasts with the background
+        x1: 0.5, // Center horizontally in relative mode
+        y1: 1, // Place at the top in relative mode
+        horizontalAnchorPoint: EHorizontalAnchorPoint.Center,
+        verticalAnchorPoint: EVerticalAnchorPoint.Top,
+        xCoordinateMode: "Relative", // Use relative positioning
+        yCoordinateMode: "Relative", // Use relative positioning
+      })
+    );
+  
     // Separate and sort buy and sell orders
     const buyOrders = orders
-      .filter((o) => o.side === 'buy' && o.outputAmount > 0)
-      .sort((a, b) => b.ioRatio - a.ioRatio); // Descending order for buy orders
+      .filter((o) => o.side === "buy" && o.outputAmount > 0)
+      .sort((a, b) => b.ioRatio - a.ioRatio);
     const sellOrders = orders
-      .filter((o) => o.side === 'sell' && o.outputAmount > 0)
-      .sort((a, b) => a.ioRatio - b.ioRatio); // Ascending order for sell orders
-
-    console.log(JSON.stringify(buyOrders,null,2))
-    console.log(JSON.stringify(sellOrders,null,2))
-
-
-
-    // Compute cumulative volumes for buy and sell orders
+      .filter((o) => o.side === "sell" && o.outputAmount > 0)
+      .sort((a, b) => a.ioRatio - b.ioRatio);
+  
+    // Compute cumulative volumes
     let cumulativeBuy = 0;
     const buyDepthData = buyOrders.map((order) => {
       cumulativeBuy += order.outputAmount;
       return { x: order.ioRatio, y: cumulativeBuy };
     });
-
+  
     let cumulativeSell = 0;
     const sellDepthData = sellOrders.map((order) => {
       cumulativeSell += order.outputAmount;
       return { x: order.ioRatio, y: cumulativeSell };
     });
-
-    console.log(JSON.stringify(buyDepthData,null,2))
-    console.log(JSON.stringify(cumulativeSell,null,2))
-
-
-
-    // Add buy depth series
-    const buySeries = new FastLineRenderableSeries(wasmContext, {
+  
+    // Add buy and sell depth series
+    const buySeries = new FastMountainRenderableSeries(wasmContext, {
       dataSeries: new XyDataSeries(wasmContext, {
         xValues: buyDepthData.map((point) => point.x),
         yValues: buyDepthData.map((point) => point.y),
       }),
-      stroke: 'green',
+      stroke: "green",
+      fill: "rgba(0, 137, 0, 0.2)",
       strokeThickness: 2,
-      isDigitalLine: true, // Ensures stepped lines for depth chart
+      isDigitalLine: true,
     });
-
-    // Add sell depth series
-    const sellSeries = new FastLineRenderableSeries(wasmContext, {
+  
+    const sellSeries = new FastMountainRenderableSeries(wasmContext, {
       dataSeries: new XyDataSeries(wasmContext, {
         xValues: sellDepthData.map((point) => point.x),
         yValues: sellDepthData.map((point) => point.y),
       }),
-      stroke: 'red',
+      stroke: "red",
+      fill: "rgba(137, 0, 0, 0.2)",
       strokeThickness: 2,
-      isDigitalLine: true, // Ensures stepped lines for depth chart
+      isDigitalLine: true,
     });
-
-    // Add the series to the SciChart surface
+  
     sciChartSurface.renderableSeries.add(buySeries, sellSeries);
-
   }
+  
+
 
   const handleNetworkChange = (newNetwork) => {
     setNetwork(newNetwork);
@@ -338,24 +475,42 @@ function App() {
       </div>
       <div className="form-group">
         <label className="form-label">
-          Base Token Address:
-          <input
+          Base Token Address : 
+          <select
             type="text"
-            value={baseToken}
+            value={baseToken || ''}
             onChange={(e) => setBaseToken(e.target.value)}
-            className="form-input"
-          />
+            className="form-select"
+          >
+            <option value="" disabled>
+            Select a Token
+            </option>
+            {Object.keys(baseTokenConfig).map((key) => (
+              <option key={key} value={key}>
+                {key.charAt(0).toUpperCase() + key.slice(1)}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
       <div className="form-group">
         <label className="form-label">
           Quote Token Address:
-          <input
+          <select
             type="text"
-            value={quoteToken}
+            value={quoteToken || ''}
             onChange={(e) => setQuoteToken(e.target.value)}
-            className="form-input"
-          />
+            className="form-select"
+          >
+            <option value="" disabled>
+            Select a Token
+            </option>
+            {Object.keys(quoteTokenConfig).map((key) => (
+              <option key={key} value={key}>
+                {key.charAt(0).toUpperCase() + key.slice(1)}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
       <button className="btn" onClick={fetchOrders}>
