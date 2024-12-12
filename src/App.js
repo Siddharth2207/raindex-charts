@@ -153,6 +153,12 @@ const quoteTokenConfig = {
     decimals: 6,
     address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
   },
+  ETHEREUM_WETH: {
+    symbol: 'WETH',
+    network: 'mainnet',
+    decimals: 18,
+    address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'
+  },
   WFLR: {
     symbol: 'WFLR',
     network: 'flare',
@@ -403,7 +409,6 @@ function App() {
     const sellOrders = orders
       .filter((o) => o.side === "sell" && o.outputAmount > 0)
       .sort((a, b) => a.ioRatio - b.ioRatio);
-  
     // Compute cumulative volumes
     let cumulativeBuy = 0;
     const buyDepthData = buyOrders.map((order) => {
