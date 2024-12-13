@@ -177,6 +177,17 @@ const orderbookAbi = [
   `function quote(${QuoteConfig} calldata quoteConfig) external view returns (bool exists, uint256 outputMax, uint256 ioRatio)`
 ];
 
+const interpreterV3Abi = [
+  `function eval3(
+      address store,
+      uint256 namespace,
+      bytes calldata bytecode,
+      uint256 sourceIndex,
+      uint256[][] calldata context,
+      uint256[] calldata inputs
+  ) external view returns (uint256[] calldata stack, uint256[] calldata writes)`
+]
+
 const orderQuery = `query OrdersListQuery($skip: Int = 0, $first: Int = 1000) {
   orders(
     orderBy: timestampAdded
@@ -219,6 +230,7 @@ const orderQuery = `query OrdersListQuery($skip: Int = 0, $first: Int = 1000) {
     timestampAdded
   }
 }`;
+const ONE = '1000000000000000000'
 
 function App() {
   const [orders, setOrders] = useState([]);
@@ -227,6 +239,127 @@ function App() {
   const [networkEndpoint, setNetworkEndpoint] = useState();
   const [baseToken, setBaseToken] = useState();
   const [quoteToken, setQuoteToken] = useState();
+
+  function qualifyNamespace(stateNamespace, sender) {
+      // Convert stateNamespace to a BigNumber and then to a 32-byte hex string
+      let stateNamespaceHex = ethers.utils.hexZeroPad(
+          ethers.BigNumber.from(stateNamespace).toHexString(),
+          32
+      );
+
+      // Normalize sender address and convert to a 32-byte hex string
+      let senderHex = ethers.utils.hexZeroPad(
+          ethers.utils.getAddress(sender).toLowerCase(),
+          32
+      );
+
+      // Concatenate the two 32-byte hex strings
+      let data = ethers.utils.concat([stateNamespaceHex, senderHex]);
+
+      // Compute the keccak256 hash of the concatenated data
+      let qualifiedNamespace = ethers.utils.keccak256(data);
+
+      // Return the hash
+      return qualifiedNamespace;
+  }
+
+  function getContext() {
+      return [
+          [
+              // base column
+              '0','0'
+          ],
+          [
+              // calling context column
+              '0','0','0'
+          ],
+          [
+              // calculateIO context column
+              '0','0'
+          ],
+          [
+              // input context column
+              '0','0','0','0','0'
+          ],
+          [
+              // output context column
+              '0','0','0','0','0'
+          ],
+          [
+              // empty context column
+              '0'
+          ],
+          [
+              '0'
+          ]
+      ];
+  }
+
+  async function validateHandleIO(currentOrder, inputIOIndex, outputIOIndex, buyAmountFp18, buyOrderRatioFp18){
+    const currentDecodedOrder = ethers.utils.defaultAbiCoder.decode([OrderV3], currentOrder.orderBytes)[0];
+    
+    const orderbookAddress = currentOrder.orderbook.id;
+
+    const takerAddress = ethers.Wallet.createRandom().address
+
+    let context = getContext()
+    context[0][0] = takerAddress
+    context[0][1] = orderbookAddress
+
+    context[1][0] = currentOrder.orderHash
+    context[1][1] = currentOrder.owner
+    context[1][2] = takerAddress
+
+    context[2][0] = buyAmountFp18
+    context[2][1] = buyOrderRatioFp18
+
+    context[3][0] = currentDecodedOrder.validInputs[inputIOIndex].token.toString()
+    context[3][1] = ethers.BigNumber.from(currentDecodedOrder.validInputs[inputIOIndex].decimals.toString()).mul(ONE).toString()
+    context[3][2] = currentDecodedOrder.validInputs[inputIOIndex].vaultId.toString()
+    context[3][3] = ethers.BigNumber.from(
+        currentOrder.inputs.filter((input) => {
+            return (
+                input.token.address.toLowerCase() === currentDecodedOrder.validInputs[inputIOIndex].token.toLowerCase() &&
+                input.token.decimals.toString() === currentDecodedOrder.validInputs[inputIOIndex].decimals.toString() &&
+                input.vaultId.toString() === currentDecodedOrder.validInputs[inputIOIndex].vaultId.toString() 
+            )
+        })[0].balance.toString()
+    ).mul(ethers.BigNumber.from('1'+'0'.repeat(18-Number(currentDecodedOrder.validInputs[inputIOIndex].decimals)))).toString()
+    context[3][4] = ethers.BigNumber.from(buyOrderRatioFp18).mul(ethers.BigNumber.from(buyAmountFp18)).div(ethers.BigNumber.from(ONE)).toString()
+
+    context[4][0] = currentDecodedOrder.validOutputs[outputIOIndex].token.toString()
+    context[4][1] = ethers.BigNumber.from(currentDecodedOrder.validOutputs[outputIOIndex].decimals.toString()).mul(ONE).toString()
+    context[4][2] = currentDecodedOrder.validOutputs[outputIOIndex].vaultId.toString()
+    context[4][3] = ethers.BigNumber.from(
+        currentOrder.outputs.filter((output) => {
+            return (
+                output.token.address.toLowerCase() === currentDecodedOrder.validOutputs[outputIOIndex].token.toLowerCase() &&
+                output.token.decimals.toString() === currentDecodedOrder.validOutputs[outputIOIndex].decimals.toString() &&
+                output.vaultId.toString() === currentDecodedOrder.validOutputs[outputIOIndex].vaultId.toString() 
+            )
+        })[0].balance.toString()
+    ).mul(ethers.BigNumber.from('1'+'0'.repeat(18-Number(currentDecodedOrder.validOutputs[outputIOIndex].decimals)))).toString()
+    context[4][4] = buyAmountFp18
+
+    const interpreterContract = new ethers.Contract(currentDecodedOrder.evaluable.interpreter, interpreterV3Abi, networkProvider);  
+
+    let validHandleIO = false 
+    try{
+        const handleIOStack = await interpreterContract.eval3(
+            currentDecodedOrder.evaluable.store,
+            ethers.BigNumber.from(qualifyNamespace(currentDecodedOrder.owner,orderbookAddress)).toString(),
+            currentDecodedOrder.evaluable.bytecode,
+            '1', // Handle IO source index is 1
+            context,
+            []
+        );
+        validHandleIO = true
+    }catch(e){
+      console.log(`HandleIO Eval failed for order ${currentOrder.orderHash} : ${e.reason} `)
+    }
+
+    return validHandleIO
+  }
 
 
   async function getCombinedOrders(orders, baseToken, quoteToken) {
@@ -276,16 +409,21 @@ function App() {
             ["bool", "uint256", "uint256"],
             buyOrderQuote
           );
-    
+          
+          const buyAmountFp18 = decodedBuyQuote[1].toString();
+          const buyOrderRatioFp18 = decodedBuyQuote[2].toString();  
           const buyAmount = decodedBuyQuote[1].toString() / 1e18;
           const buyOrderRatio = decodedBuyQuote[2].toString() / 1e18;
-    
-          combinedOrders.push({
-            orderHash: currentOrder.orderHash,
-            side: 'buy',
-            ioRatio: 1 / buyOrderRatio,
-            outputAmount: buyAmount * buyOrderRatio
-          });
+
+          const isHandleIOValid = await validateHandleIO(currentOrder,buyInputIndex,buyOutputIndex,buyAmountFp18,buyOrderRatioFp18)
+          if(isHandleIOValid){
+            combinedOrders.push({
+              orderHash: currentOrder.orderHash,
+              side: 'buy',
+              ioRatio: 1 / buyOrderRatio,
+              outputAmount: buyAmount * buyOrderRatio
+            });
+          }
         }catch{
           console.log("Error getting quote for order : ", currentOrder.orderHash)
         }
@@ -329,16 +467,21 @@ function App() {
             ["bool", "uint256", "uint256"],
             sellOrderQuote
           );
-    
+          
+          const sellAmountFp18 = decodedSellQuote[1].toString();
+          const sellOrderRatioFp18 = decodedSellQuote[2].toString();  
           const sellAmount = decodedSellQuote[1].toString() / 1e18;
           const sellOrderRatio = decodedSellQuote[2].toString() / 1e18;
-    
-          combinedOrders.push({
-            orderHash: currentOrder.orderHash,
-            side: 'sell',
-            ioRatio: sellOrderRatio,
-            outputAmount: sellAmount
-          });
+          const isHandleIOValid = await validateHandleIO(currentOrder,sellInputIndex,sellOutputIndex,sellAmountFp18,sellOrderRatioFp18)
+          
+          if(isHandleIOValid){
+            combinedOrders.push({
+              orderHash: currentOrder.orderHash,
+              side: 'sell',
+              ioRatio: sellOrderRatio,
+              outputAmount: sellAmount
+            });
+          }
 
         }catch(error){
           console.log("Error getting quote for order : ", currentOrder.orderHash)
@@ -359,7 +502,7 @@ function App() {
       const {  address: quoteTokenAddress } = quoteTokenConfig[quoteToken];
 
       const sampleOrders = await getCombinedOrders(orders, baseTokenAddress, quoteTokenAddress);
-
+      console.log(sampleOrders)
       setOrders(sampleOrders);
       renderDepthChart(sampleOrders);
     } catch (error) {
@@ -391,14 +534,14 @@ function App() {
     sciChartSurface.annotations.add(
       new TextAnnotation({
         text: "TFT-BUSD Raindex Market Depth Chart",
-        fontSize: 24, // Larger font for better visibility
-        textColor: "white", // Ensure the text contrasts with the background
-        x1: 0.5, // Center horizontally in relative mode
-        y1: 1, // Place at the top in relative mode
+        fontSize: 24,
+        textColor: "white",
+        x1: 0.5,
+        y1: 1,
         horizontalAnchorPoint: EHorizontalAnchorPoint.Center,
         verticalAnchorPoint: EVerticalAnchorPoint.Top,
-        xCoordinateMode: "Relative", // Use relative positioning
-        yCoordinateMode: "Relative", // Use relative positioning
+        xCoordinateMode: "Relative",
+        yCoordinateMode: "Relative",
       })
     );
   
@@ -409,6 +552,10 @@ function App() {
     const sellOrders = orders
       .filter((o) => o.side === "sell" && o.outputAmount > 0)
       .sort((a, b) => a.ioRatio - b.ioRatio);
+
+    console.log(JSON.stringify(buyOrders,null,2))
+    console.log(JSON.stringify(sellOrders,null,2))
+
     // Compute cumulative volumes
     let cumulativeBuy = 0;
     const buyDepthData = buyOrders.map((order) => {
