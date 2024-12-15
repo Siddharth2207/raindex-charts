@@ -66,15 +66,32 @@
     background-color: #0056b3;
   }
   
-  /* Chart Container Styling */
-    .chart-container {
-        width: 90%; /* Restrict width to 80% of the parent container */
-        max-width: 900px; /* Set a maximum width */
-        height: 500px; /* Maintain the height */
-        margin: 20px auto; /* Center the chart horizontally */
-        border: 1px solid #ccc;
-        border-radius: 5px;
-        background-color: #f9f9f9;
+
+  
+    .order-summary {
+      margin-top: 20px;
+      margin-bottom: 10px;
+      padding: 15px;
+      background-color: #f0f9ff; /* Light blue background */
+      border: 1px solid #007bff; /* Blue border */
+      border-radius: 5px;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 600;
+      color: #007bff; /* Blue text color */
     }
-  
-  
+    
+    .order-summary .highlight {
+      color: #0056b3; /* Darker blue for the "Total Orders" text */
+      font-weight: bold;
+    }
+    
+    .chart-container {
+      width: 100%;
+      height: 500px; /* Adjust height as needed */
+      margin-top: 10px;
+      background-color: #ffffff; /* White background for clarity */
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    

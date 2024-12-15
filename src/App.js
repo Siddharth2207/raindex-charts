@@ -5,6 +5,7 @@ import {
   XyDataSeries,
   FastMountainRenderableSeries,
   EAutoRange,
+  ENumericFormat,
   TextAnnotation,
   EHorizontalAnchorPoint,
   EVerticalAnchorPoint,
@@ -393,6 +394,16 @@ function App() {
         try{
           const orderbookAddress = currentOrder.orderbook.id;
           const orderBookContract = new ethers.Contract(orderbookAddress, orderbookAbi, networkProvider);
+          
+          const currentOutputVault = currentOrder.outputs.filter((output) => {
+              return (
+                  output.token.address.toLowerCase() === currentDecodedOrder.validOutputs[buyOutputIndex].token.toLowerCase() &&
+                  output.token.decimals.toString() === currentDecodedOrder.validOutputs[buyOutputIndex].decimals.toString() &&
+                  output.vaultId.toString() === currentDecodedOrder.validOutputs[buyOutputIndex].vaultId.toString() 
+              )
+          })[0]
+          const outputTokenSymbol = currentOutputVault.token.symbol.toUpperCase()
+          const outputTokenBalance = ethers.utils.formatUnits(currentOutputVault.balance.toString(),currentOutputVault.token.decimals)
     
           const buyOrderQuote = await networkProvider.call({
             to: orderbookAddress,
@@ -421,7 +432,9 @@ function App() {
               orderHash: currentOrder.orderHash,
               side: 'buy',
               ioRatio: 1 / buyOrderRatio,
-              outputAmount: buyAmount * buyOrderRatio
+              outputAmount: buyAmount * buyOrderRatio,
+              outputTokenSymbol,
+              outputTokenBalance
             });
           }
         }catch{
@@ -453,6 +466,17 @@ function App() {
         try{
           const orderbookAddress = currentOrder.orderbook.id;
           const orderBookContract = new ethers.Contract(orderbookAddress, orderbookAbi, networkProvider);
+
+          const currentOutputVault = currentOrder.outputs.filter((output) => {
+              return (
+                  output.token.address.toLowerCase() === currentDecodedOrder.validOutputs[sellOutputIndex].token.toLowerCase() &&
+                  output.token.decimals.toString() === currentDecodedOrder.validOutputs[sellOutputIndex].decimals.toString() &&
+                  output.vaultId.toString() === currentDecodedOrder.validOutputs[sellOutputIndex].vaultId.toString() 
+              )
+          })[0]
+          const outputTokenSymbol = currentOutputVault.token.symbol.toUpperCase()
+          const outputTokenBalance = ethers.utils.formatUnits(currentOutputVault.balance.toString(),currentOutputVault.token.decimals)
+
           const sellOrderQuote = await networkProvider.call({
             to: orderbookAddress,
             from: ethers.Wallet.createRandom().address,
@@ -479,7 +503,9 @@ function App() {
               orderHash: currentOrder.orderHash,
               side: 'sell',
               ioRatio: sellOrderRatio,
-              outputAmount: sellAmount
+              outputAmount: sellAmount,
+              outputTokenSymbol,
+              outputTokenBalance
             });
           }
 
@@ -502,7 +528,7 @@ function App() {
       const {  address: quoteTokenAddress } = quoteTokenConfig[quoteToken];
 
       const sampleOrders = await getCombinedOrders(orders, baseTokenAddress, quoteTokenAddress);
-      console.log(sampleOrders)
+    
       setOrders(sampleOrders);
       renderDepthChart(sampleOrders);
     } catch (error) {
@@ -512,14 +538,17 @@ function App() {
 
 
   async function renderDepthChart(orders) {
+
     const { sciChartSurface, wasmContext } = await SciChartSurface.create("scichart-root");
-  
+
     // Add X and Y axes
     sciChartSurface.xAxes.add(
       new NumericAxis(wasmContext, {
         axisTitle: `${baseToken.toUpperCase()} Price`,
         autoRange: EAutoRange.Always,
         labelPrecision: 6,
+        // labelFormat: ENumericFormat.Engineering,
+        cursorLabelFormat: ENumericFormat.Decimal,
       })
     );
     sciChartSurface.yAxes.add(
@@ -527,6 +556,8 @@ function App() {
         axisTitle: `${baseToken.toUpperCase()} Cumulative Quantity`,
         autoRange: EAutoRange.Always,
         labelPrecision: 6,
+        labelFormat: ENumericFormat.Engineering,
+        cursorLabelFormat: ENumericFormat.Decimal,
       })
     );
   
@@ -552,9 +583,6 @@ function App() {
     const sellOrders = orders
       .filter((o) => o.side === "sell" && o.outputAmount > 0)
       .sort((a, b) => a.ioRatio - b.ioRatio);
-
-    console.log(JSON.stringify(buyOrders,null,2))
-    console.log(JSON.stringify(sellOrders,null,2))
 
     // Compute cumulative volumes
     let cumulativeBuy = 0;
@@ -594,8 +622,6 @@ function App() {
   
     sciChartSurface.renderableSeries.add(buySeries, sellSeries);
   }
-  
-
 
   const handleNetworkChange = (newNetwork) => {
     setNetwork(newNetwork);
@@ -665,10 +691,36 @@ function App() {
           </select>
         </label>
       </div>
+    
       <button className="btn" onClick={fetchOrders}>
         Generate Depth Chart
       </button>
       <div id="scichart-root" className="chart-container" />
+      {orders.length > 0 && (
+      <div className="order-summary">
+        <p>
+          <span className="highlight">Total Orders:</span> {orders.length}
+        </p>
+        {/* Dynamic Token Balances */}
+        <div className="token-balances">
+          {Object.entries(
+            orders.reduce((acc, order) => {
+              // Accumulate balances for each token symbol
+              const { outputTokenSymbol, outputTokenBalance } = order;
+              acc[outputTokenSymbol] =
+                (acc[outputTokenSymbol] || 0) +
+                parseFloat(outputTokenBalance); // Sum balances
+              return acc;
+            }, {})
+          ).map(([token, balance]) => (
+            <p key={token} className="token-balance">
+              <span className="highlight">{token} Balance:</span>{" "}
+              {Number(balance).toLocaleString()} {/* Formatted balance */}
+            </p>
+          ))}
+        </div>
+      </div>
+    )}
     </div>
   );
   
