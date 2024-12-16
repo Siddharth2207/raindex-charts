@@ -1,97 +1,186 @@
 /* General Container Styling */
 .container {
-    width: 100%;
-    padding: 20px;
-    font-family: Arial, sans-serif;
-  }
-  
-  /* Header Styling */
-  .header {
-    font-size: 1.5rem;
-    font-weight: bold;
-    margin-bottom: 20px;
-    text-align: center;
-  }
-  
-  /* Form Group Styling */
-  .form-group {
-    margin-bottom: 15px;
-  }
-  
-  /* Label Styling */
-  .form-label {
-    display: block;
-    margin: 5px;
-    padding: 10px;
-    font-size: 1rem;
-    font-weight: 500;
-  }
-  
-  /* Select Dropdown Styling */
-  .form-select {
-    width: 100%;
-    max-width: 400px;
-    padding: 10px;
-    margin: 5px;
-    font-size: 1rem;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-  }
-  
-  /* Input Field Styling */
-  .form-input {
-    width: 100%;
-    max-width: 400px;
-    padding: 10px;
-    margin: 5px;
-    font-size: 1rem;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-  }
-  
-  /* Button Styling */
-  .btn {
-    display: inline-block;
-    padding: 10px 20px;
-    font-size: 1rem;
-    color: #fff;
-    background-color: #007bff;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-  }
-  
-  .btn:hover {
-    background-color: #0056b3;
-  }
-  
+  width: 100%;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
 
-  
-    .order-summary {
-      margin-top: 20px;
-      margin-bottom: 10px;
-      padding: 15px;
-      background-color: #f0f9ff; /* Light blue background */
-      border: 1px solid #007bff; /* Blue border */
-      border-radius: 5px;
-      text-align: center;
-      font-size: 18px;
-      font-weight: 600;
-      color: #007bff; /* Blue text color */
-    }
-    
-    .order-summary .highlight {
-      color: #0056b3; /* Darker blue for the "Total Orders" text */
-      font-weight: bold;
-    }
-    
-    .chart-container {
-      width: 100%;
-      height: 500px; /* Adjust height as needed */
-      margin-top: 10px;
-      background-color: #ffffff; /* White background for clarity */
-      border: 1px solid #ccc;
-      border-radius: 5px;
-    }
-    
+/* Header Styling */
+.header {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 20px;
+  text-align: center;
+  color: #333;
+}
+
+/* Form Group Styling */
+.form-group {
+  margin-bottom: 15px;
+}
+
+/* Label Styling */
+.form-label {
+  display: block;
+  margin: 5px;
+  padding: 10px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #444;
+}
+
+/* Select Dropdown Styling */
+.form-select, .form-input {
+  width: 100%;
+  max-width: 400px;
+  padding: 10px;
+  margin: 5px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+}
+
+/* Input Field Focus Effect */
+.form-input:focus, .form-select:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+  outline: none;
+}
+
+/* Placeholder Styling */
+.form-input::placeholder {
+  color: #aaa;
+  font-style: italic;
+}
+
+/* Button Styling */
+.btn {
+  display: inline-block;
+  padding: 10px 20px;
+  font-size: 1rem;
+  color: #fff;
+  background-color: #007bff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.btn:hover {
+  background-color: #0056b3;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Order Summary Styling */
+.order-summary {
+  margin-top: 20px;
+  margin-bottom: 10px;
+  padding: 15px;
+  background-color: #f0f9ff; /* Light blue background */
+  border: 1px solid #007bff; /* Blue border */
+  border-radius: 5px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: #007bff; /* Blue text color */
+}
+
+.order-summary .highlight {
+  color: #0056b3; /* Darker blue for the "Total Orders" text */
+  font-weight: bold;
+}
+
+/* Market Depth Container */
+.market-depth-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 10px;
+}
+
+/* Chart Styling */
+.chart-container {
+  width: 60%;
+  height: 600px;
+  background-color: #ffffff;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+/* Table Container Styling */
+.table-container {
+  width: 35%;
+  background-color: #ffffff;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 10px;
+  overflow-y: auto;
+  max-height: 600px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+/* Orders Table Styling */
+.orders-table {
+  margin-bottom: 20px;
+}
+
+.buy-title {
+  color: green;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.sell-title {
+  color: red;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.orders-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.orders-table th, .orders-table td {
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+  text-align: center;
+}
+
+.orders-table th {
+  background-color: #f4f4f4;
+  color: #333;
+  font-weight: bold;
+}
+
+.orders-table tr:hover {
+  background-color: #f9f9f9;
+  cursor: pointer;
+}
+
+/* Hover Effect on Rows */
+.orders-table tr:hover td {
+  background-color: #e7f3ff;
+  transition: background-color 0.3s ease;
+}
+
+/* Scrollbar Styling for Table Container */
+.table-container::-webkit-scrollbar {
+  width: 10px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  background-color: #007bff;
+  border-radius: 5px;
+}
+
+.table-container::-webkit-scrollbar-track {
+  background-color: #f1f1f1;
+}

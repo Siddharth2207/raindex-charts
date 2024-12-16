@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   SciChartSurface,
   NumericAxis,
@@ -9,6 +9,7 @@ import {
   TextAnnotation,
   EHorizontalAnchorPoint,
   EVerticalAnchorPoint,
+  EAxisAlignment
 } from "scichart";
 
 import axios from 'axios';
@@ -241,6 +242,28 @@ function App() {
   const [baseToken, setBaseToken] = useState();
   const [quoteToken, setQuoteToken] = useState();
 
+  const POLLING_INTERVAL = 60000;
+  const pollingRef = useRef(null);
+
+  useEffect(() => {
+    if (networkEndpoint && baseToken && quoteToken) {
+      // Start polling when all dependencies are set
+      fetchOrders(); // Fetch immediately on first render
+
+      pollingRef.current = setInterval(() => {
+        fetchOrders();
+      }, POLLING_INTERVAL);
+
+      console.log('Polling started...');
+
+      // Cleanup interval on component unmount or dependencies change
+      return () => {
+        clearInterval(pollingRef.current);
+        console.log('Polling stopped...');
+      };
+    }
+  }, [networkEndpoint, baseToken, quoteToken, fetchOrders]);
+
   function qualifyNamespace(stateNamespace, sender) {
       // Convert stateNamespace to a BigNumber and then to a 32-byte hex string
       let stateNamespaceHex = ethers.utils.hexZeroPad(
@@ -346,7 +369,7 @@ function App() {
 
     let validHandleIO = false 
     try{
-        const handleIOStack = await interpreterContract.eval3(
+        await interpreterContract.eval3(
             currentDecodedOrder.evaluable.store,
             ethers.BigNumber.from(qualifyNamespace(currentDecodedOrder.owner,orderbookAddress)).toString(),
             currentDecodedOrder.evaluable.bytecode,
@@ -361,7 +384,6 @@ function App() {
 
     return validHandleIO
   }
-
 
   async function getCombinedOrders(orders, baseToken, quoteToken) {
     let combinedOrders = [];
@@ -535,10 +557,10 @@ function App() {
       console.error('Error fetching orders:', error);
     }
   }
-
-
+  
   async function renderDepthChart(orders) {
 
+    console.log(JSON.stringify(orders,null,2))
     const { sciChartSurface, wasmContext } = await SciChartSurface.create("scichart-root");
 
     // Add X and Y axes
@@ -547,8 +569,7 @@ function App() {
         axisTitle: `${baseToken.toUpperCase()} Price`,
         autoRange: EAutoRange.Always,
         labelPrecision: 6,
-        // labelFormat: ENumericFormat.Engineering,
-        cursorLabelFormat: ENumericFormat.Decimal,
+        axisAlignment: EAxisAlignment.Right
       })
     );
     sciChartSurface.yAxes.add(
@@ -556,6 +577,7 @@ function App() {
         axisTitle: `${baseToken.toUpperCase()} Cumulative Quantity`,
         autoRange: EAutoRange.Always,
         labelPrecision: 6,
+        axisAlignment: EAxisAlignment.Top,
         labelFormat: ENumericFormat.Engineering,
         cursorLabelFormat: ENumericFormat.Decimal,
       })
@@ -567,8 +589,8 @@ function App() {
         text: "TFT-BUSD Raindex Market Depth Chart",
         fontSize: 24,
         textColor: "white",
-        x1: 0.5,
-        y1: 1,
+        x1: 1,
+        y1: 0.5,
         horizontalAnchorPoint: EHorizontalAnchorPoint.Center,
         verticalAnchorPoint: EVerticalAnchorPoint.Top,
         xCoordinateMode: "Relative",
@@ -629,101 +651,133 @@ function App() {
     setNetworkEndpoint(config.subgraphs[newNetwork]);
   };
 
+  const renderOrderTables = (orders) => {
+    const buyOrders = orders.filter((o) => o.side === "buy").reverse();
+    const sellOrders = orders.filter((o) => o.side === "sell");
+  
+    return (
+      <div className="market-data-container">
+        {/* Buy Orders Table */}
+        <div className="orders-table buy-orders">
+          <h3 className="buy-title">Buy Orders</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Price</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {buyOrders.map((order, index) => (
+                <tr key={index}>
+                  <td style={{ color: "green" }}>{Number(order.ioRatio).toFixed(4)}</td>
+                  <td>{Number(order.outputAmount).toFixed(4)} {baseToken}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+  
+        {/* Sell Orders Table */}
+        <div className="orders-table sell-orders">
+          <h3 className="sell-title">Sell Orders</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Price</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sellOrders.map((order, index) => (
+                <tr key={index}>
+                  <td style={{ color: "red" }}>{Number(order.ioRatio).toFixed(4)}</td>
+                  <td>{Number(order.outputAmount).toFixed(4)} {baseToken}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  // Render chart and table side by side
   return (
     <div className="container">
       <h2 className="header">Market Depth Chart</h2>
+      {/* Input Selectors */}
       <div className="form-group">
-        <label className="form-label">
-          Network : 
-          <select
-            value={network || ''}
-            onChange={(e) => handleNetworkChange(e.target.value)}
-            className="form-select"
-          >
-            <option value="" disabled>
-              Select a Network
-            </option>
-            {Object.keys(config.networks).map((key) => (
-              <option key={key} value={key}>
-                {key.charAt(0).toUpperCase() + key.slice(1)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className="form-group">
-        <label className="form-label">
-          Base Token Address : 
-          <select
-            type="text"
-            value={baseToken || ''}
-            onChange={(e) => setBaseToken(e.target.value)}
-            className="form-select"
-          >
-            <option value="" disabled>
-            Select a Token
-            </option>
-            {Object.keys(baseTokenConfig).map((key) => (
-              <option key={key} value={key}>
-                {key.charAt(0).toUpperCase() + key.slice(1)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className="form-group">
-        <label className="form-label">
-          Quote Token Address:
-          <select
-            type="text"
-            value={quoteToken || ''}
-            onChange={(e) => setQuoteToken(e.target.value)}
-            className="form-select"
-          >
-            <option value="" disabled>
-            Select a Token
-            </option>
-            {Object.keys(quoteTokenConfig).map((key) => (
-              <option key={key} value={key}>
-                {key.charAt(0).toUpperCase() + key.slice(1)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-    
-      <button className="btn" onClick={fetchOrders}>
-        Generate Depth Chart
-      </button>
-      <div id="scichart-root" className="chart-container" />
-      {orders.length > 0 && (
-      <div className="order-summary">
-        <p>
-          <span className="highlight">Total Orders:</span> {orders.length}
-        </p>
-        {/* Dynamic Token Balances */}
-        <div className="token-balances">
-          {Object.entries(
-            orders.reduce((acc, order) => {
-              // Accumulate balances for each token symbol
-              const { outputTokenSymbol, outputTokenBalance } = order;
-              acc[outputTokenSymbol] =
-                (acc[outputTokenSymbol] || 0) +
-                parseFloat(outputTokenBalance); // Sum balances
-              return acc;
-            }, {})
-          ).map(([token, balance]) => (
-            <p key={token} className="token-balance">
-              <span className="highlight">{token} Balance:</span>{" "}
-              {Number(balance).toLocaleString()} {/* Formatted balance */}
-            </p>
+        <label>Network:</label>
+        <select value={network || ''} onChange={(e) => handleNetworkChange(e.target.value)}>
+          <option value="" disabled>Select a Network</option>
+          {Object.keys(config.networks).map((key) => (
+            <option key={key} value={key}>{key.toUpperCase()}</option>
           ))}
+        </select>
+      </div>
+
+      <div className="form-group">
+        <label>Base Token:</label>
+        <select value={baseToken || ''} onChange={(e) => setBaseToken(e.target.value)}>
+          <option value="" disabled>Select a Token</option>
+          {Object.keys(baseTokenConfig).map((key) => (
+            <option key={key} value={key}>{key.toUpperCase()}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="form-group">
+        <label>Quote Token:</label>
+        <select value={quoteToken || ''} onChange={(e) => setQuoteToken(e.target.value)}>
+          <option value="" disabled>Select a Token</option>
+          {Object.keys(quoteTokenConfig).map((key) => (
+            <option key={key} value={key}>{key.toUpperCase()}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Side-by-Side Layout */}
+      <div className="market-depth-container">
+        {/* Left: Chart */}
+        <div id="scichart-root" className="chart-container"></div>
+
+        {/* Right: Table */}
+        <div className="table-container">
+          {orders.length > 0 && renderOrderTables(orders)}
         </div>
       </div>
-    )}
+      {orders.length > 0 && (
+        <div className="order-summary">
+          <p>
+            <span className="highlight">Total Orders:</span> {orders.length}
+          </p>
+          {/* Dynamic Token Balances */}
+          <div className="token-balances">
+            {Object.entries(
+              orders.reduce((acc, order) => {
+                // Accumulate balances for each token symbol
+                const { outputTokenSymbol, outputTokenBalance } = order;
+                acc[outputTokenSymbol] =
+                  (acc[outputTokenSymbol] || 0) +
+                  parseFloat(outputTokenBalance); // Sum balances
+                return acc;
+              }, {})
+            ).map(([token, balance]) => (
+              <p key={token} className="token-balance">
+                <span className="highlight">{token} Balance:</span>{" "}
+                {Number(balance).toLocaleString()} {/* Formatted balance */}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
   
 }
 
+
 export default App;
+
+
