@@ -27,6 +27,8 @@ import {
   getContext
 } from './contants';
 import './App.css';
+import raindexLogo from "./assets/raindex-logo.png"; 
+import raindexTextLogo from "./assets/raindex.png";
 
 SciChartSurface.loadWasmFromCDN();
 
@@ -444,7 +446,6 @@ function App() {
     );
   };
 
-  // Render chart and table side by side
   return (
     <div className="container">
       <h2 className="header">Market Depth Chart</h2>
