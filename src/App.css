@@ -164,3 +164,24 @@
     max-width: none;
   }
 }
+
+.header-with-logo {
+  display: flex; /* Use flexbox for alignment */
+  align-items: center; /* Vertically center logo and text */
+  justify-content: center; /* Center the entire content */
+  gap: 15px; /* Add space between logo and header */
+  margin-bottom: 20px; /* Add spacing below the header */
+}
+
+.logo {
+  height: 40px; /* Adjust the height to fit the design */
+  width: auto; /* Maintain aspect ratio */
+}
+
+/* Header text */
+.header {
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: #333;
+  margin: 0; /* Remove default margin */
+}

@@ -27,7 +27,6 @@ import {
   getContext
 } from './contants';
 import './App.css';
-import raindexLogo from "./assets/raindex-logo.png"; 
 import raindexTextLogo from "./assets/raindex.png";
 
 SciChartSurface.loadWasmFromCDN();
@@ -40,28 +39,35 @@ function App() {
   const [networkEndpoint, setNetworkEndpoint] = useState();
   const [baseToken, setBaseToken] = useState();
   const [quoteToken, setQuoteToken] = useState();
-
-  const POLLING_INTERVAL = 60000;
+  const POLLING_INTERVAL = 300000;
   const pollingRef = useRef(null);
 
+
   useEffect(() => {
+    // Cleanup function to stop the previous polling interval
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      console.log('Previous polling stopped...');
+    }
+
     if (networkEndpoint && baseToken && quoteToken) {
-      // Start polling when all dependencies are set
-      fetchOrders(); // Fetch immediately on first render
+      fetchOrders(); // Fetch immediately when network, baseToken, or quoteToken changes
 
       pollingRef.current = setInterval(() => {
         fetchOrders();
       }, POLLING_INTERVAL);
 
-      console.log('Polling started...');
-
-      // Cleanup interval on component unmount or dependencies change
-      return () => {
-        clearInterval(pollingRef.current);
-        console.log('Polling stopped...');
-      };
+      console.log('New polling started...');
     }
-  }, [networkEndpoint, baseToken, quoteToken, fetchOrders]);
+
+    // Cleanup on unmount or when dependencies change
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        console.log('Polling cleaned up...');
+      }
+    };
+  }, [networkEndpoint, baseToken, quoteToken]);
 
   async function validateHandleIO(currentOrder, inputIOIndex, outputIOIndex, buyAmountFp18, buyOrderRatioFp18){
     const currentDecodedOrder = ethers.utils.defaultAbiCoder.decode([OrderV3], currentOrder.orderBytes)[0];
@@ -287,16 +293,16 @@ function App() {
 
   async function fetchOrders() {
     try {
-      // Fetch orders from GraphQL
       const queryResult = await axios.post(networkEndpoint, { query: orderQuery });
       const orders = queryResult.data.data.orders;
-      const {  address: baseTokenAddress } = baseTokenConfig[baseToken];
-      const {  address: quoteTokenAddress } = quoteTokenConfig[quoteToken];
+      const baseTokenAddress = baseTokenConfig[baseToken]?.address;
+      const quoteTokenAddress = quoteTokenConfig[quoteToken]?.address;
 
-      const sampleOrders = await getCombinedOrders(orders, baseTokenAddress, quoteTokenAddress);
-    
-      setOrders(sampleOrders);
-      renderDepthChart(sampleOrders);
+      if (baseTokenAddress && quoteTokenAddress) {
+        const sampleOrders = await getCombinedOrders(orders, baseTokenAddress, quoteTokenAddress);
+        setOrders(sampleOrders);
+        renderDepthChart(sampleOrders);
+      }
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
@@ -393,6 +399,7 @@ function App() {
     setNetwork(newNetwork);
     setNetworkProvider(new ethers.providers.JsonRpcProvider(config.networks[newNetwork].rpc));
     setNetworkEndpoint(config.subgraphs[newNetwork]);
+    setOrders([]);
   };
 
   const renderOrderTables = (orders) => {
@@ -448,7 +455,11 @@ function App() {
 
   return (
     <div className="container">
-      <h2 className="header">Market Depth Chart</h2>
+      <div className="header-with-logo">
+        {/* Logo */}
+        <img src={raindexTextLogo} alt="Raindex Logo" className="logo" />
+        <h2 className="header">Market Depth Chart</h2>
+      </div>
       {/* Input Selectors */}
       <div className="form-group">
         <label>Network:</label>
@@ -479,7 +490,6 @@ function App() {
           ))}
         </select>
       </div>
-
       {/* Side-by-Side Layout */}
       <div className="market-depth-container">
         {/* Left: Chart */}
