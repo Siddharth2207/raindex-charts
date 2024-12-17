@@ -138,157 +138,112 @@ function App() {
   async function getCombinedOrders(orders, baseToken, quoteToken) {
     let combinedOrders = [];
     
-  
-    for (let i = 0; i < orders.length; i++) {
-      let currentOrder = orders[i];
+    const quoteRequests = orders.map(async (currentOrder) => {
       const currentDecodedOrder = ethers.utils.defaultAbiCoder.decode([OrderV3], currentOrder.orderBytes)[0];
-
-      // Process Buy Orders
-      let isBuyInput = false, isBuyOutput = false;
-      let buyInputIndex, buyOutputIndex;
   
+      let isBuyInput = false, isBuyOutput = false, buyInputIndex, buyOutputIndex;
+      let isSellInput = false, isSellOutput = false, sellInputIndex, sellOutputIndex;
+  
+      // Identify Buy Order Input/Output indices
       for (let j = 0; j < currentDecodedOrder.validInputs.length; j++) {
-        let inputVault = currentDecodedOrder.validInputs[j];
-        if (inputVault.token.toLowerCase() === baseToken.toLowerCase()) {
+        if (currentDecodedOrder.validInputs[j].token.toLowerCase() === baseToken.toLowerCase()) {
           isBuyInput = true;
           buyInputIndex = j;
         }
-      }
-      for (let j = 0; j < currentDecodedOrder.validOutputs.length; j++) {
-        let outputVault = currentDecodedOrder.validOutputs[j];
-        if (outputVault.token.toLowerCase() === quoteToken.toLowerCase()) {
-          isBuyOutput = true;
-          buyOutputIndex = j;
-        }
-      }
-  
-      if (isBuyInput && isBuyOutput) {
-        try{
-          const orderbookAddress = currentOrder.orderbook.id;
-          const orderBookContract = new ethers.Contract(orderbookAddress, orderbookAbi, networkProvider);
-          
-          const currentOutputVault = currentOrder.outputs.filter((output) => {
-              return (
-                  output.token.address.toLowerCase() === currentDecodedOrder.validOutputs[buyOutputIndex].token.toLowerCase() &&
-                  output.token.decimals.toString() === currentDecodedOrder.validOutputs[buyOutputIndex].decimals.toString() &&
-                  output.vaultId.toString() === currentDecodedOrder.validOutputs[buyOutputIndex].vaultId.toString() 
-              )
-          })[0]
-          const outputTokenSymbol = currentOutputVault.token.symbol.toUpperCase()
-          const outputTokenBalance = ethers.utils.formatUnits(currentOutputVault.balance.toString(),currentOutputVault.token.decimals)
-    
-          const buyOrderQuote = await networkProvider.call({
-            to: orderbookAddress,
-            from: ethers.Wallet.createRandom().address,
-            data: orderBookContract.interface.encodeFunctionData("quote", [{
-              order: currentDecodedOrder,
-              inputIOIndex: buyInputIndex,
-              outputIOIndex: buyOutputIndex,
-              signedContext: []
-            }])
-          });
-    
-          const decodedBuyQuote = ethers.utils.defaultAbiCoder.decode(
-            ["bool", "uint256", "uint256"],
-            buyOrderQuote
-          );
-          
-          const buyAmountFp18 = decodedBuyQuote[1].toString();
-          const buyOrderRatioFp18 = decodedBuyQuote[2].toString();  
-          const buyAmount = decodedBuyQuote[1].toString() / 1e18;
-          const buyOrderRatio = decodedBuyQuote[2].toString() / 1e18;
-
-          const isHandleIOValid = await validateHandleIO(currentOrder,buyInputIndex,buyOutputIndex,buyAmountFp18,buyOrderRatioFp18)
-          if(isHandleIOValid){
-            combinedOrders.push({
-              orderHash: currentOrder.orderHash,
-              side: 'buy',
-              ioRatio: 1 / buyOrderRatio,
-              outputAmount: buyAmount * buyOrderRatio,
-              outputTokenSymbol,
-              outputTokenBalance
-            });
-          }
-        }catch{
-          console.log("Error getting quote for order : ", currentOrder.orderHash)
-        }
-        
-      }
-  
-      // Process Sell Orders
-      let isSellInput = false, isSellOutput = false;
-      let sellInputIndex, sellOutputIndex;
-  
-      for (let j = 0; j < currentDecodedOrder.validInputs.length; j++) {
-        let inputVault = currentDecodedOrder.validInputs[j];
-        if (inputVault.token.toLowerCase() === quoteToken.toLowerCase()) {
+        if (currentDecodedOrder.validInputs[j].token.toLowerCase() === quoteToken.toLowerCase()) {
           isSellInput = true;
           sellInputIndex = j;
         }
       }
+  
       for (let j = 0; j < currentDecodedOrder.validOutputs.length; j++) {
-        let outputVault = currentDecodedOrder.validOutputs[j];
-        if (outputVault.token.toLowerCase() === baseToken.toLowerCase()) {
+        if (currentDecodedOrder.validOutputs[j].token.toLowerCase() === quoteToken.toLowerCase()) {
+          isBuyOutput = true;
+          buyOutputIndex = j;
+        }
+        if (currentDecodedOrder.validOutputs[j].token.toLowerCase() === baseToken.toLowerCase()) {
           isSellOutput = true;
           sellOutputIndex = j;
         }
       }
   
-      if (isSellInput && isSellOutput) {
-        try{
-          const orderbookAddress = currentOrder.orderbook.id;
-          const orderBookContract = new ethers.Contract(orderbookAddress, orderbookAbi, networkProvider);
-
+      const orderbookAddress = currentOrder.orderbook.id;
+      const orderBookContract = new ethers.Contract(orderbookAddress, orderbookAbi, networkProvider);
+  
+      const processOrder = async (side) => {
+        try {
+          const isBuy = side === "buy";
+          const inputIndex = isBuy ? buyInputIndex : sellInputIndex;
+          const outputIndex = isBuy ? buyOutputIndex : sellOutputIndex;
+  
           const currentOutputVault = currentOrder.outputs.filter((output) => {
-              return (
-                  output.token.address.toLowerCase() === currentDecodedOrder.validOutputs[sellOutputIndex].token.toLowerCase() &&
-                  output.token.decimals.toString() === currentDecodedOrder.validOutputs[sellOutputIndex].decimals.toString() &&
-                  output.vaultId.toString() === currentDecodedOrder.validOutputs[sellOutputIndex].vaultId.toString() 
-              )
-          })[0]
-          const outputTokenSymbol = currentOutputVault.token.symbol.toUpperCase()
-          const outputTokenBalance = ethers.utils.formatUnits(currentOutputVault.balance.toString(),currentOutputVault.token.decimals)
-
-          const sellOrderQuote = await networkProvider.call({
+            return (
+              output.token.address.toLowerCase() === currentDecodedOrder.validOutputs[outputIndex].token.toLowerCase() &&
+              output.token.decimals.toString() === currentDecodedOrder.validOutputs[outputIndex].decimals.toString() &&
+              output.vaultId.toString() === currentDecodedOrder.validOutputs[outputIndex].vaultId.toString()
+            );
+          })[0];
+  
+          const outputTokenSymbol = currentOutputVault.token.symbol.toUpperCase();
+          const outputTokenBalance = ethers.utils.formatUnits(
+            currentOutputVault.balance.toString(),
+            currentOutputVault.token.decimals
+          );
+  
+          const quoteResult = await networkProvider.call({
             to: orderbookAddress,
             from: ethers.Wallet.createRandom().address,
-            data: orderBookContract.interface.encodeFunctionData("quote", [{
-              order: currentDecodedOrder,
-              inputIOIndex: sellInputIndex,
-              outputIOIndex: sellOutputIndex,
-              signedContext: []
-            }])
+            data: orderBookContract.interface.encodeFunctionData("quote", [
+              {
+                order: currentDecodedOrder,
+                inputIOIndex: inputIndex,
+                outputIOIndex: outputIndex,
+                signedContext: [],
+              },
+            ]),
           });
-          const decodedSellQuote = ethers.utils.defaultAbiCoder.decode(
-            ["bool", "uint256", "uint256"],
-            sellOrderQuote
+  
+          const decodedQuote = ethers.utils.defaultAbiCoder.decode(["bool", "uint256", "uint256"], quoteResult);
+          const amountFp18 = decodedQuote[1].toString();
+          const orderRatioFp18 = decodedQuote[2].toString();
+          const amount = decodedQuote[1] / 1e18;
+          const orderRatio = decodedQuote[2] / 1e18;
+  
+          const isHandleIOValid = await validateHandleIO(
+            currentOrder,
+            inputIndex,
+            outputIndex,
+            amountFp18,
+            orderRatioFp18
           );
-          
-          const sellAmountFp18 = decodedSellQuote[1].toString();
-          const sellOrderRatioFp18 = decodedSellQuote[2].toString();  
-          const sellAmount = decodedSellQuote[1].toString() / 1e18;
-          const sellOrderRatio = decodedSellQuote[2].toString() / 1e18;
-          const isHandleIOValid = await validateHandleIO(currentOrder,sellInputIndex,sellOutputIndex,sellAmountFp18,sellOrderRatioFp18)
-          
-          if(isHandleIOValid){
+  
+          if (isHandleIOValid) {
             combinedOrders.push({
               orderHash: currentOrder.orderHash,
-              side: 'sell',
-              ioRatio: sellOrderRatio,
-              outputAmount: sellAmount,
+              side: side,
+              ioRatio: isBuy ? 1 / orderRatio : orderRatio,
+              outputAmount: isBuy ? amount * orderRatio : amount,
               outputTokenSymbol,
-              outputTokenBalance
+              outputTokenBalance,
             });
           }
-
-        }catch(error){
-          console.log("Error getting quote for order : ", currentOrder.orderHash)
+        } catch (error) {
+          console.log(`Error processing ${side} order: `, currentOrder.orderHash, error);
         }
-        
-      }
-    }
+      };
   
-    return combinedOrders.filter(order => {return order.outputAmount > 0});
+      // Concurrently process buy and sell orders where applicable
+      const promises = [];
+      if (isBuyInput && isBuyOutput) promises.push(processOrder("buy"));
+      if (isSellInput && isSellOutput) promises.push(processOrder("sell"));
+  
+      await Promise.all(promises);
+    });
+  
+    // Wait for all requests to finish
+    await Promise.all(quoteRequests);
+  
+    return combinedOrders.filter((order) => order.outputAmount > 0);
   }
 
   async function fetchOrders() {
