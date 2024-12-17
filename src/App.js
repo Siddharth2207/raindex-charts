@@ -265,7 +265,6 @@ function App() {
   
   async function renderDepthChart(orders) {
 
-    console.log(JSON.stringify(orders,null,2))
     const { sciChartSurface, wasmContext } = await SciChartSurface.create("scichart-root");
 
     // Add X and Y axes
@@ -274,7 +273,7 @@ function App() {
         axisTitle: `${baseToken.toUpperCase()} Price`,
         autoRange: EAutoRange.Always,
         labelPrecision: 6,
-        axisAlignment: EAxisAlignment.Right
+        axisAlignment: EAxisAlignment.Left
       })
     );
     sciChartSurface.yAxes.add(
@@ -358,8 +357,33 @@ function App() {
   };
 
   const renderOrderTables = (orders) => {
-    const buyOrders = orders.filter((o) => o.side === "buy").reverse();
-    const sellOrders = orders.filter((o) => o.side === "sell");
+    // Helper function to group and sum orders by ioRatio
+    const groupOrdersByPrice = (orders) => {
+      return orders.reduce((acc, order) => {
+        const price = Number(order.ioRatio).toFixed(4); // Use price as the key
+        if (!acc[price]) {
+          acc[price] = 0; // Initialize cumulative amount
+        }
+        acc[price] += Number(order.outputAmount); // Add outputAmount to cumulative sum
+        return acc;
+      }, {});
+    };
+  
+    // Group orders by price and side
+    const groupedBuyOrders = groupOrdersByPrice(
+      orders.filter((o) => o.side === "buy")
+    );
+    const groupedSellOrders = groupOrdersByPrice(
+      orders.filter((o) => o.side === "sell")
+    );
+  
+    const buyOrders = Object.entries(groupedBuyOrders)
+      .map(([price, amount]) => ({ price: Number(price), amount }))
+      .sort((a, b) => b.price - a.price).reverse();
+  
+    const sellOrders = Object.entries(groupedSellOrders)
+      .map(([price, amount]) => ({ price: Number(price), amount }))
+      .sort((a, b) => a.price - b.price);
   
     return (
       <div className="market-data-container">
@@ -376,8 +400,8 @@ function App() {
             <tbody>
               {buyOrders.map((order, index) => (
                 <tr key={index}>
-                  <td style={{ color: "green" }}>{Number(order.ioRatio).toFixed(4)}</td>
-                  <td>{Number(order.outputAmount).toFixed(4)} {baseToken}</td>
+                  <td style={{ color: "green" }}>{order.price.toFixed(4)}</td>
+                  <td>{Number(order.amount).toFixed(4)} {baseToken}</td>
                 </tr>
               ))}
             </tbody>
@@ -397,8 +421,8 @@ function App() {
             <tbody>
               {sellOrders.map((order, index) => (
                 <tr key={index}>
-                  <td style={{ color: "red" }}>{Number(order.ioRatio).toFixed(4)}</td>
-                  <td>{Number(order.outputAmount).toFixed(4)} {baseToken}</td>
+                  <td style={{ color: "red" }}>{order.price.toFixed(4)}</td>
+                  <td>{Number(order.amount).toFixed(4)} {baseToken}</td>
                 </tr>
               ))}
             </tbody>
@@ -407,7 +431,7 @@ function App() {
       </div>
     );
   };
-
+  
   return (
     <div className="container">
       <div className="header-with-logo">
