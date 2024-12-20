@@ -15,19 +15,16 @@ export const config = {
     sepolia: { rpc: 'https://1rpc.io/sepolia', chainId: 11155111, currency: 'ETH' },
     polygon: { rpc: 'https://rpc.ankr.com/polygon', chainId: 137, currency: 'POL' },
     arbitrum: { rpc: 'https://rpc.ankr.com/arbitrum', chainId: 42161, currency: 'ETH' },
-    matchain: { rpc: 'https://rpc.matchain.io', chainId: 698, currency: 'BNB' },
     bsc: { rpc: 'https://rpc.ankr.com/bsc', chainId: 56, currency: 'BNB' },
-    linea: { rpc: 'https://rpc.linea.build', chainId: 59144, currency: 'ETH' },
     mainnet: { rpc: 'https://rpc.ankr.com/eth', chainId: 1, currency: 'ETH' },
   },
   subgraphs: {
-    flare: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-flare/0.8/gn',
-    base: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-base/0.9/gn',
-    polygon: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-polygon/0.6/gn',
-    arbitrum: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-arbitrum/0.2/gn',
-    bsc: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-bsc/2024-10-14-63f4/gn',
-    linea: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-linea/2024-10-14-12fc/gn',
-    mainnet: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-mainnet/2024-10-25-af6a/gn',
+    base: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-base/2024-12-13-9c39/gn',
+    polygon: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-matic/2024-12-13-d2b4/gn',
+    mainnet: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-mainnet/2024-12-13-7f22/gn',
+    arbitrum: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-arbitrum-one/2024-12-13-7435/gn',
+    flare: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-flare/2024-12-13-9dc7/gn',
+    bsc: 'https://api.goldsky.com/api/public/project_clv14x04y9kzi01saerx7bxpg/subgraphs/ob4-bsc/2024-12-13-2244/gn'
   },
 };
 
@@ -98,6 +95,12 @@ export const baseTokenConfig = {
     decimals: 18,
     address: '0x12e605bc104e93b45e1ad99f9e555f659051c2bb'
   },
+  cysFLR: {
+    symbol: 'cysFLR',
+    network: 'flare',
+    decimals: 18,
+    address: '0x19831cfb53a0dbead9866c43557c1d48dff76567'
+  },
   PAI: {
     symbol: 'PAI',
     network: 'mainnet',
@@ -154,6 +157,12 @@ export const quoteTokenConfig = {
     network: 'flare',
     decimals: 18,
     address: '0x12e605bc104e93b45e1ad99f9e555f659051c2bb'
+  },
+  FLARE_cUSDX: {
+    symbol: 'cUSDX',
+    network: 'flare',
+    decimals: 6,
+    address: '0xfe2907dfa8db6e320cdbf45f0aa888f6135ec4f8'
   },
 };
 
