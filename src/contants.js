@@ -119,6 +119,18 @@ export const baseTokenConfig = {
     decimals: 18,
     address: '0x16A500Aec6c37F84447ef04E66c57cfC6254cF92'
   },
+  POLYGON_WETH: {
+    symbol: 'WETH',
+    network: 'polygon',
+    decimals: 18,
+    address: '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619'
+  },
+  FLARE_USDCe: {
+    symbol: 'USDC.e',
+    network: 'flare',
+    decimals: 6,
+    address: '0xfbda5f676cb37624f28265a144a48b0d6e87d3b6'
+  }
 };
 
 export const quoteTokenConfig = {
@@ -127,6 +139,12 @@ export const quoteTokenConfig = {
     network: 'polygon',
     decimals: 18,
     address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'
+  },
+  POLYGON_WETH: {
+    symbol: 'WETH',
+    network: 'polygon',
+    decimals: 18,
+    address: '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619'
   },
   BSC_BUSD: {
     symbol: 'BUSD',
@@ -164,6 +182,13 @@ export const quoteTokenConfig = {
     decimals: 6,
     address: '0xfe2907dfa8db6e320cdbf45f0aa888f6135ec4f8'
   },
+  FLARE_USDCe: {
+    symbol: 'USDC.e',
+    network: 'flare',
+    decimals: 6,
+    address: '0xfbda5f676cb37624f28265a144a48b0d6e87d3b6'
+  }
+  
 };
 
 export const orderbookAbi = [
