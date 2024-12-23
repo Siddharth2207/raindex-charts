@@ -164,6 +164,12 @@ export const quoteTokenConfig = {
     decimals: 18,
     address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'
   },
+  cysFLR: {
+    symbol: 'cysFLR',
+    network: 'flare',
+    decimals: 18,
+    address: '0x19831cfb53a0dbead9866c43557c1d48dff76567'
+  },
   WFLR: {
     symbol: 'WFLR',
     network: 'flare',
