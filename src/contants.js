@@ -35,6 +35,18 @@ export const baseTokenConfig = {
     network: 'polygon',
     address: '0xd0e9c8f5fae381459cf07ec506c1d2896e8b5df6'
   },
+  NHT: {
+    symbol: 'NHT',
+    decimals: 18,
+    network: 'polygon',
+    address: '0x84342e932797fc62814189f01f0fb05f52519708'
+  },
+  POLYGON_USDT: {
+    symbol: 'USDT',
+    network: 'polygon',
+    decimals: 6,
+    address: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f'
+  },
   POLYGON_USDC: {
     symbol: 'USDC',
     network: 'polygon',
@@ -152,6 +164,18 @@ export const baseTokenConfig = {
 };
 
 export const quoteTokenConfig = {
+  NHT: {
+    symbol: 'NHT',
+    decimals: 18,
+    network: 'polygon',
+    address: '0x84342e932797fc62814189f01f0fb05f52519708'
+  },
+  POLYGON_USDT: {
+    symbol: 'USDT',
+    network: 'polygon',
+    decimals: 6,
+    address: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f'
+  },
   POLYGON_USDC: {
     symbol: 'USDC',
     network: 'polygon',
