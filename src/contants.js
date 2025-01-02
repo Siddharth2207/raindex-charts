@@ -59,6 +59,12 @@ export const baseTokenConfig = {
     decimals: 18,
     address: '0xb5c064f955d8e7f38fe0460c556a72987494ee17'
   },
+  FLARE_cUSDX: {
+    symbol: 'cUSDX',
+    network: 'flare',
+    decimals: 6,
+    address: '0xfe2907dfa8db6e320cdbf45f0aa888f6135ec4f8'
+  },
   QUICK_NEW: {
     symbol: 'QUICK',
     network: 'polygon',
@@ -130,6 +136,12 @@ export const baseTokenConfig = {
     network: 'polygon',
     decimals: 18,
     address: '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619'
+  },
+  BASE_WETH: {
+    symbol: 'WETH',
+    network: 'base',
+    decimals: 18,
+    address: '0x4200000000000000000000000000000000000006'
   },
   FLARE_USDCe: {
     symbol: 'USDC.e',
