@@ -29,6 +29,18 @@ export const config = {
 };
 
 export const baseTokenConfig = {
+  KIMA: {
+    symbol: 'KIMA',
+    decimals: 18,
+    network: 'arbitrum',
+    address: '0x94fcd9c18f99538c0f7c61c5500ca79f0d5c4dab'
+  },
+  ARBITRUM_USDT: {
+    symbol: 'USDT',
+    decimals: 6,
+    network: 'arbitrum',
+    address: '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9'
+  },
   IOEN: {
     symbol: 'IOEN',
     decimals: 18,
@@ -164,6 +176,18 @@ export const baseTokenConfig = {
 };
 
 export const quoteTokenConfig = {
+  KIMA: {
+    symbol: 'KIMA',
+    decimals: 18,
+    network: 'arbitrum',
+    address: '0x94fcd9c18f99538c0f7c61c5500ca79f0d5c4dab'
+  },
+  ARBITRUM_USDT: {
+    symbol: 'USDT',
+    decimals: 6,
+    network: 'arbitrum',
+    address: '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9'
+  },
   NHT: {
     symbol: 'NHT',
     decimals: 18,
