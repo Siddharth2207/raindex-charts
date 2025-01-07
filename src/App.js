@@ -518,7 +518,7 @@ const Header = () => (
     <nav>
       <ul style={{ listStyle: 'none', display: 'flex', gap: '15px', margin: 0, padding: 0 }}>
         <li><Link to="/">Raindex Charts</Link></li>
-        <li><Link to="/about">Raindex Reports</Link></li>
+        <li><Link to="/reports">Raindex Reports</Link></li>
       </ul>
     </nav>
   </header>
@@ -531,7 +531,7 @@ const App = () => {
       <main style={{ padding: '20px' }}>
         <Routes>
           <Route path="/" element={<RaindexCharts />} />
-          <Route path="/about" element={<RechartsDashboard />} />
+          <Route path="/reports" element={<RechartsDashboard />} />
         </Routes>
       </main>
     </Router>
