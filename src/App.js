@@ -1,4 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import axios from "axios";
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import RechartsDashboard from "./RechartsDashboard";
+
 import {
   SciChartSurface,
   NumericAxis,
@@ -12,7 +17,6 @@ import {
   EAxisAlignment
 } from "scichart";
 
-import axios from 'axios';
 import { ethers } from 'ethers';
 import {
   OrderV3,
@@ -31,8 +35,7 @@ import raindexTextLogo from "./assets/raindex.png";
 
 SciChartSurface.loadWasmFromCDN();
 
-
-function App() {
+const RaindexCharts = () => {
   const [orders, setOrders] = useState([]);
   const [network, setNetwork] = useState();
   const [networkProvider, setNetworkProvider] = useState();
@@ -509,6 +512,31 @@ function App() {
   
 }
 
+// Header Component
+const Header = () => (
+  <header style={{ padding: '10px', background: '#f8f9fa', borderBottom: '1px solid #ddd' }}>
+    <nav>
+      <ul style={{ listStyle: 'none', display: 'flex', gap: '15px', margin: 0, padding: 0 }}>
+        <li><Link to="/">Raindex Charts</Link></li>
+        <li><Link to="/reports">Raindex Reports</Link></li>
+      </ul>
+    </nav>
+  </header>
+);
+
+const App = () => {
+  return (
+    <Router>
+      <Header />
+      <main style={{ padding: '20px' }}>
+        <Routes>
+          <Route path="/" element={<RaindexCharts />} />
+          <Route path="/reports/:reportToken/:reportDuration" element={<RechartsDashboard />} />
+        </Routes>
+      </main>
+    </Router>
+  );
+};
 
 export default App;
 
