@@ -531,7 +531,7 @@ const App = () => {
       <main style={{ padding: '20px' }}>
         <Routes>
           <Route path="/" element={<RaindexCharts />} />
-          <Route path="/reports" element={<RechartsDashboard />} />
+          <Route path="/reports/:reportToken/:reportDuration" element={<RechartsDashboard />} />
         </Routes>
       </main>
     </Router>
