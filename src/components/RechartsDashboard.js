@@ -4,7 +4,6 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Cell,
   ResponsiveContainer,
 } from "recharts";
 import React, { useState, useEffect } from "react";
@@ -60,6 +59,8 @@ const RechartsDashboard = () => {
   const [volumeStats, setVolumeStats] = useState([]);
   const [orderVolumeData, setOrderVolumeData] = useState([]);
   const [orderVolumeStats, setOrderVolumeStats] = useState([]);
+  const [reportDurationInSeconds, setReportDurationInSeconds] = useState(0);
+
 
   const [vaultUtilizationData, setVaultUtilizationData] = useState([]);
   const [vaultUtilizationStats, setVaultUtilizationStats] = useState([]);
@@ -75,7 +76,7 @@ const RechartsDashboard = () => {
             monthly: 30 * 24 * 60 * 60,
         };
         const durationInSeconds = durationToSeconds[reportDuration] ?? 0;
-        
+        setReportDurationInSeconds(durationInSeconds);
         const { filteredActiveOrders, filteredInActiveOrders } = await fetchAndFilterOrders(
             token,
             network,
@@ -278,33 +279,16 @@ const RechartsDashboard = () => {
     return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
   }
   
-  const currentTimestamp = new Date().toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
+  const currentTimestamp = new Date()
 
-  const renderBarChart = (
-    data,
-    title,
-    yAxisLabel,
-    stats,
-    colorKeys,
-    subtitle
-  ) => {
-    // Generate a palette of blue shades based on the number of color keys
-    const bluePalette = generateColorPalette(colorKeys.length);
+  const renderBarChart = (data, title, yAxisLabel, stats, colorKeys, subtitle) => {
+    const bluePalette = generateColorPalette(colorKeys.length); // Assume this function generates colors dynamically.
   
     return (
-      <div className="px-2">
+      <div className="bg-white rounded-lg shadow-lg p-5 flex flex-col justify-between">
         {/* Chart Title */}
-        <h3 className="text-center text-lg font-semibold mb-1">{title}</h3>
-  
-        {subtitle && (
-          <p className="text-center text-xs text-gray-500 mb-2">{subtitle}</p>
-        )}
+        <h3 className="text-lg font-semibold text-center mb-2 text-gray-800">{title}</h3>
+        {subtitle && <p className="text-sm text-center text-gray-600 mb-4">{subtitle}</p>}
   
         {/* Chart Container */}
         <ResponsiveContainer width="100%" height={200}>
@@ -312,34 +296,32 @@ const RechartsDashboard = () => {
             data={data}
             margin={{ top: 5, right: 5, bottom: 20, left: 25 }}
           >
-            <XAxis dataKey="name" tick={{ fontSize: 20 }} />
+            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
             <YAxis
               label={{
                 value: yAxisLabel,
                 angle: -90,
                 position: "insideLeft",
-                style: { fontSize: "20px" },
+                style: { fontSize: "14px" },
               }}
-              tick={{ fontSize: 10 }}
+              tick={{ fontSize: 12 }}
             />
             <Tooltip />
-  
-            {/* Bars with Dynamic Blue Shades */}
             {colorKeys.map((key, index) => (
               <Bar
                 key={key}
                 dataKey={key}
                 stackId="a"
-                fill={bluePalette[index]} // Assign dynamically generated color
+                fill={bluePalette[index]} // Dynamic color assignment
               />
             ))}
           </BarChart>
         </ResponsiveContainer>
   
         {/* Stats Section */}
-        <div className="text-center text-xs mt-2">
+        <div className="grid grid-cols-2 gap-1 mt-4 text-center text-base">
           {stats.map((stat, index) => (
-            <div key={index} className="mb-1">
+            <div key={index} className="flex justify-between">
               <span style={{ color: bluePalette[index] }} className="font-semibold">
                 {stat.name}:
               </span>{" "}
@@ -353,95 +335,72 @@ const RechartsDashboard = () => {
     );
   };
 
-  const renderHistoricalChart = (data, title, yAxisLabel) => {
-    // Generate a palette of blue shades based on the number of data entries
-    const bluePalette = generateColorPalette(data.length);
-  
+  if (loading) {
     return (
-      <div className="w-1/2 px-2 mb-4">
-        {/* Chart Title */}
-        <h3 className="text-center text-lg font-semibold mb-1">{title}</h3>
-  
-        {/* Chart Container */}
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart
-            data={data}
-            margin={{ top: 5, right: 5, bottom: 20, left: 25 }}
-          >
-            {/* X-Axis */}
-            <XAxis dataKey="name" tick={{ fontSize: 20 }} />
-  
-            {/* Y-Axis */}
-            <YAxis
-              label={{
-                value: yAxisLabel,
-                angle: -90,
-                position: "insideLeft",
-                style: { fontSize: "20px" },
-              }}
-              tick={{ fontSize: 10 }}
-            />
-  
-            {/* Tooltip */}
-            <Tooltip
-              formatter={(value, name, props) => [
-                yAxisLabel === "USD"
-                  ? `$${value.toLocaleString()}`
-                  : value.toLocaleString(),
-                props.payload.timeframe,
-              ]}
-            />
-  
-            {/* Bar Chart */}
-            <Bar dataKey="value">
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={bluePalette[index]} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
+        <div className="spinner w-10 h-10 border-4 border-gray-300 border-t-indigo-500 rounded-full animate-spin"></div>
+        <p>Loading...</p>
       </div>
     );
-  };
-
-  if (loading) {
-    return <div>Loading...</div>; // Loading effect
   }
-
+  
   if (error) {
-    return <div>Error: {error}</div>; // Error message
+    return <div>Error: {error}</div>;
   }
 
   return (
-    
-    <div className="max-w-6xl mx-auto p-4 bg-white rounded-lg shadow">
+    <div className="max-w-screen-3xl mx-auto p-8 bg-gray-100 rounded-lg shadow-lg">
+      <div className="p-6 bg-gray-100 border-b border-gray-300">
+        <div className="flex justify-between items-start">
+          {/* Title Section */}
+          <h1 className="text-2xl font-bold text-gray-800">
+            {reportToken.toUpperCase()} Market Analysis Report
+          </h1>
 
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">{reportToken.toUpperCase()} Market Analysis Report</h1>
-        <p className="text-gray-600">{currentTimestamp}</p>
+          {/* Info Section */}
+          <div className="text-right space-y-4">
+            <div>
+              <span className="block font-semibold text-gray-600">Report generated at:</span>
+              <p className="text-gray-700">{new Date(currentTimestamp).toLocaleString()}</p>
+            </div>
+            <div>
+              <span className="block font-semibold text-gray-600">Report duration:</span>
+              <p className="text-gray-700">
+                {new Date(new Date(currentTimestamp) - reportDurationInSeconds * 1000).toLocaleString()} -{" "}
+                {new Date(currentTimestamp).toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
 
-      <div className="container mx-auto">
-        <div className="grid grid-cols-3 gap-4 mb-4 lg:grid-cols-1">
-          {tradeData.length > 0 && tradeStats.length > 0 && renderBarChart(
+
+
+      <div className="grid grid-cols-3 gap-5 md:grid-cols-3 sm:grid-cols-1">
+        {tradeData.length > 0 &&
+          tradeStats.length > 0 &&
+          renderBarChart(
             tradeData,
             "Trade Distribution",
             "Trades",
             tradeStats,
             tradeStats.map((item) => item.name),
-            `Snapshot at ${currentTimestamp}`
+            ``
           )}
-
-          {volumeData.length > 0 && volumeStats.length > 0 && renderBarChart(
+        {volumeData.length > 0 &&
+          volumeStats.length > 0 &&
+          renderBarChart(
             volumeData,
             "Volume Distribution",
             "Trades",
             volumeStats,
             volumeStats.map((item) => item.name),
-            `Snapshot at ${currentTimestamp}`
+            ``
           )}
-          {orderVolumeData.length > 0 && orderVolumeStats.length > 0 && renderBarChart(
+        {orderVolumeData.length > 0 &&
+          orderVolumeStats.length > 0 &&
+          renderBarChart(
             orderVolumeData,
             "Volume by Order",
             "USD",
@@ -449,48 +408,27 @@ const RechartsDashboard = () => {
             orderVolumeStats.map((item) => item.name),
             ``
           )}
-        </div>
-      </div>
-
-      <div className="container mx-auto">
-        <div className="flex flex-wrap mb-4">
-          {/* {renderBarChart(
-            poolData,
-            "Pool Size Distribution",
-            "Total Pool Size: $302,399.50",
-            "USD",
-            poolStats,
-            poolStats.map((item) => item.name),
-            `Snapshot at ${currentTimestamp}`
-          )} */}
-          {vaultData.length > 0 && vaultStats.length > 0 && renderBarChart(
+        {vaultData.length > 0 &&
+          vaultStats.length > 0 &&
+          renderBarChart(
             vaultData,
             "Vault Distribution",
             "USD",
             vaultStats,
             vaultStats.map((item) => item.name),
-            `Snapshot at ${currentTimestamp}`
+            ``
           )}
-          {vaultUtilizationData.length > 0 && vaultUtilizationStats.length > 0 && renderBarChart(
+        {vaultUtilizationData.length > 0 &&
+          vaultUtilizationStats.length > 0 &&
+          renderBarChart(
             vaultUtilizationData,
             "Vault Utilization",
             "USD",
             vaultUtilizationStats,
             vaultUtilizationStats.map((item) => item.name),
-            `Snapshot at ${currentTimestamp}`
+            ``
           )}
-          {/* {renderBarChart(
-            vaultUtilizationData,
-            "Vault Utilization",
-            "Total Balance: $25,374.89",
-            "USD",
-            vaultUtilizationStats,
-            vaultUtilizationStats.map((item) => item.name),
-            "Last Month"
-          )} */}
-        </div>
       </div>
-
     </div>
   );
 };
