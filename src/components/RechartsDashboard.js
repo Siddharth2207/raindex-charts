@@ -62,23 +62,22 @@ const RechartsDashboard = () => {
   const [orderVolumeData, setOrderVolumeData] = useState([]);
   const [orderVolumeStats, setOrderVolumeStats] = useState([]);
   const [reportDurationInSeconds, setReportDurationInSeconds] = useState(0);
-  const [vaultUtilizationData, setVaultUtilizationData] = useState([]);
-  const [vaultUtilizationStats, setVaultUtilizationStats] = useState([]);
+  const [vaultVolume, setVaultVolume] = useState(0);
+  const [vaultBalance, setVaultBalance] = useState(0);
 
   const [totalRaindexTrades, setTotalRaindexTrades] = useState(0);
   const [totalExternalTrades, setTotalExternalTrades] = useState(0);
+  const [totalRaindexTradesAllTime, setTotalRaindexTradesAllTime] = useState(0);
+
   const [totalRaindexVolume, setTotalRaindexVolume] = useState(0);
   const [totalExternalVolume, setTotalExternalVolume] = useState(0);
+  const [totalRaindexVolumeTokenDenominated, setTotalRaindexVolumeTokenDenominated] = useState(0);
+  const [totalRaindexVolumeAllTimeTokenDenominated, setTotalRaindexVolumeAllTimeTokenDenominated] = useState(0);
 
   const [orderMetricsData, setOrderMetricsData] = useState([]);
   const [orderMetricsStats, setOrderMetricsStats] = useState([]);
   const [activeOrders, setOctiveOrders] = useState(null);
   const [allOrders, setAllOrders] = useState(null);
-
-  
-
-
-
 
   useEffect(() => {
       const setData = async () => {
@@ -109,22 +108,21 @@ const RechartsDashboard = () => {
 
         setOrderMetricsData(orderMetricsData)
         setOrderMetricsStats(orderMetricsStats)
-        
         const {tokenVaultSummary} = await tokenMetrics(filteredActiveOrders);
         const {vaultData, vaultStats} = prepareVaultDataAndStats(tokenVaultSummary);
 
         setVaultData(vaultData)
         setVaultStats(vaultStats)
 
-        const {totalTokenVolForDurationUsd,totalTradesForDuration,totalRaindexTrades,aggregatedResultsForToken,volumeDistributionForToken,tradeData, tradeStats, volumeData, volumeStats} = await prepareTradeAndVolumeStats(token,network,allOrders,durationInSeconds);
-  
-
+        const {totalTokenVolForDurationUsd,totalTradesForDuration,totalRaindexTrades,totalRaindexTradesAllTimeForToken,aggregatedResultsForToken,volumeDistributionForToken,tradeData, tradeStats, volumeData, volumeStats} = await prepareTradeAndVolumeStats(token,network,allOrders,durationInSeconds);
+      
         setTradeData(tradeData)
         setTradeStats(tradeStats)
         setVolumeData(volumeData)
         setVolumeStats(volumeStats) 
         setTotalRaindexTrades(totalRaindexTrades)
         setTotalExternalTrades(totalTradesForDuration - totalRaindexTrades)
+        setTotalRaindexTradesAllTime(totalRaindexTradesAllTimeForToken)
 
         const { orderVolumeData, orderVolumeStats } = prepareOrderVolumeData(volumeDistributionForToken)
         setOrderVolumeData(orderVolumeData)
@@ -135,19 +133,28 @@ const RechartsDashboard = () => {
           aggregatedResultsForToken?.find((e) => e.address.toLowerCase() === tokenAddress)
                 ?.totalVolumeForDurationUsd || 0,
         );
+        const totalRaindexVolumeInToken = Number(
+          aggregatedResultsForToken?.find((e) => e.address.toLowerCase() === tokenAddress)
+                ?.totalVolumeForDuration || 0,
+        );
+        const totalRaindexVolumeAllTimeInToken = Number(
+          aggregatedResultsForToken?.find((e) => e.address.toLowerCase() === tokenAddress)
+                ?.totalVolumeAllTime || 0,
+        );
         
         setTotalRaindexVolume(totalRaindexVolumeUsd)
         setTotalExternalVolume(totalTokenVolForDurationUsd-totalRaindexVolumeUsd)
-
+        setTotalRaindexVolumeTokenDenominated(totalRaindexVolumeInToken)
+        setTotalRaindexVolumeAllTimeTokenDenominated(totalRaindexVolumeAllTimeInToken)
 
         const combinedBalance = await calculateCombinedVaultBalance(allOrders);
-        const {vaultUtilizationData, vaultUtilizationStats} = prepareVaultUtilizationData(
+        const {usedVaultBalance} = prepareVaultUtilizationData(
           token,
-          aggregatedResultsForToken,
-          combinedBalance
+          aggregatedResultsForToken
         );
-        setVaultUtilizationData(vaultUtilizationData);
-        setVaultUtilizationStats(vaultUtilizationStats);
+        setVaultVolume(usedVaultBalance);
+        setVaultBalance(combinedBalance);
+
         setLoading(false);
       }catch(error){
         setError(error)
@@ -220,7 +227,6 @@ const RechartsDashboard = () => {
     return { chartData, stats };
   }
   
-
   const prepareTradeAndVolumeStats = async (token,network,allOrders,durationInSeconds) => {
 
       let toTimestamp = Math.floor(new Date().getTime() / 1000) - 300;
@@ -228,15 +234,16 @@ const RechartsDashboard = () => {
       let tradeData = [[]]
       let volumeData = [[]]
       
-      let totalTokenVolForDurationUsd,totalTradesForDuration,totalRaindexTrades,aggregatedResultsForToken,volumeDistributionForToken
+      let totalTokenVolForDurationUsd,totalTradesForDuration,totalRaindexTrades,totalRaindexTradesAllTimeForToken,aggregatedResultsForToken,volumeDistributionForToken
       
-      for(let i = 0; i < 3; i++){
+      for(let i = 0; i < 1; i++){
           const {
             totalTokenExternalVolForDurationUsd,
             totalTokenExternalTradesForDuration,
           } = await analyzeLiquidity(network,token,fromTimestamp,toTimestamp);
           const {
             tradesLastForDuration: totalRaindexTradesForDuration,
+            tradesAllTime: totalRaindexTradesAllTime,
             aggregatedResults,
             volumeDistributionForDuration
           } = await volumeMetrics(network, allOrders, fromTimestamp, toTimestamp, token);
@@ -245,7 +252,6 @@ const RechartsDashboard = () => {
               aggregatedResults?.find((e) => e.address.toLowerCase() === tokenAddress)
                   ?.totalVolumeForDurationUsd || 0,
           );
-
           const totalExternalTrades =
               totalTokenExternalTradesForDuration - totalRaindexTradesForDuration;
           const totalExternalVolumeUsd = totalTokenExternalVolForDurationUsd - totalRaindexVolumeUsd;
@@ -262,6 +268,7 @@ const RechartsDashboard = () => {
             totalTokenVolForDurationUsd = totalTokenExternalVolForDurationUsd
             totalTradesForDuration = totalTokenExternalTradesForDuration
             totalRaindexTrades = totalRaindexTradesForDuration
+            totalRaindexTradesAllTimeForToken = totalRaindexTradesAllTime
             aggregatedResultsForToken = aggregatedResults
             volumeDistributionForToken = volumeDistributionForDuration
           }
@@ -277,7 +284,7 @@ const RechartsDashboard = () => {
         { name: "External"},
       ];
 
-      return {totalTokenVolForDurationUsd,totalTradesForDuration,totalRaindexTrades,aggregatedResultsForToken,volumeDistributionForToken,tradeData, tradeStats, volumeData, volumeStats}
+      return {totalTokenVolForDurationUsd,totalTradesForDuration,totalRaindexTrades,totalRaindexTradesAllTimeForToken,aggregatedResultsForToken,volumeDistributionForToken,tradeData, tradeStats, volumeData, volumeStats}
         
   }
 
@@ -347,43 +354,118 @@ const RechartsDashboard = () => {
 
   const prepareVaultUtilizationData = (
     token,
-    aggregatedResults,
-    combinedBalance
+    aggregatedResults
   ) => {
     const tokenAddress = tokenConfig[token]?.address.toLowerCase();
     const usedVaultBalance = Number(
         aggregatedResults?.find((e) => e.address.toLowerCase() === tokenAddress)
             ?.totalVolumeForDurationUsd || 0,
-    );
-    
-    const unusedVaultBalance = Math.max(combinedBalance - usedVaultBalance, 0);
-    const vaultUtilizationData = [
-      {
-        name: "Balance",
-        "Volume": usedVaultBalance,
-        "Unused": unusedVaultBalance,
-        total: combinedBalance,
-      },
-    ];
-    const usedPercentage =  ((usedVaultBalance / combinedBalance) * 100).toFixed(2);
-    const unusedPercentage =  (((unusedVaultBalance) / combinedBalance) * 100).toFixed(2);
-
-    const vaultUtilizationStats = [
-      { name: "Volume", value: `$${usedVaultBalance}`, percentage: `${usedPercentage}` },
-      { name: "Unused", value: `$${(unusedVaultBalance)}`, percentage: `${unusedPercentage}` },
-    ];
-
-    return {vaultUtilizationData, vaultUtilizationStats}
-
+    ); 
+    return {usedVaultBalance}
   }
-  
   
   function abbreviateHash(hash) {
     return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
   }
   
   const currentTimestamp = new Date()
-
+ 
+  const renderUtilizationVisualization = (volume, balance, title, subtitle) => {
+    const utilizationRate = ((volume / balance) * 100).toFixed(1);
+  
+    const barData = [
+      { name: "Volume", value: volume },
+      { name: "Balance", value: balance },
+    ];
+  
+    // Corrected pieData for utilization visualization
+    const pieData = [
+      { name: "Utilized", value: volume },
+      { name: "Remaining", value: balance - volume },
+    ];
+  
+    const COLORS = pieData.map((_, index) =>
+      generateColorPalette(pieData.length)[index]
+    );
+  
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-4 flex flex-col gap-6">
+        {/* Chart Title */}
+        <h3 className="text-md font-semibold text-center text-gray-800">
+          {title}
+        </h3>
+  
+        {/* Subtitle */}
+        {subtitle && (
+          <p className="text-sm text-center text-gray-600">{subtitle}</p>
+        )}
+  
+        {/* Dynamic Scale Display */}
+        <div className="bg-gray-100 p-3 rounded-md flex justify-center items-center flex-col">
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">
+            Scale
+          </h4>
+          <div className="flex items-center text-gray-700 text-base">
+            <span className="text-blue-500 font-bold">
+              ${volume.toLocaleString()}
+            </span>
+            <span className="mx-2">/</span>
+            <span className="text-gray-700 font-bold">
+              ${balance.toLocaleString()}
+            </span>
+          </div>
+          <div className="text-blue-500 text-lg font-bold mt-2">
+            {utilizationRate}%
+          </div>
+          <p className="text-sm text-gray-700">Utilization Rate</p>
+        </div>
+  
+        {/* Spiral Utilization Pie Chart */}
+        <div className="bg-gray-100 p-3 rounded-md flex flex-col items-center">
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">
+            Utilization
+          </h4>
+          <ResponsiveContainer width="100%" height={150}>
+            <PieChart>
+              <Pie
+                data={pieData}
+                cx="50%"
+                cy="50%"
+                innerRadius={30}
+                outerRadius={50}
+                fill="#8884d8"
+                paddingAngle={2}
+                dataKey="value"
+                label={({ name, value }) =>
+                  `${name}: ${(value / balance * 100).toFixed(1)}%`
+                }
+              >
+                {pieData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value) => `$${value.toLocaleString()}`} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
+              <span className="text-sm text-gray-700">
+                Volume: ${volume.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-gray-300 rounded-full"></span>
+              <span className="text-sm text-gray-700">
+                Remaining: ${(balance - volume).toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+    
   const renderBarChart = (data, title, yAxisLabel, stats, colorKeys, subtitle) => {
 
     // Generate color palette dynamically for the bar chart based on colorKeys length
@@ -638,19 +720,15 @@ const RechartsDashboard = () => {
   }; 
 
   const renderPieChart = ( title, stats, colorKeys, subtitle) => {
-   console.log("stats : ", stats)
     const data = stats.map(item => ({
       ...item,
       value: parseFloat(item.value.replace(/[^0-9.-]+/g, "")),
       percentage: parseFloat(item.percentage),
     }));
-    console.log(`data :`, JSON.stringify(data,null,2))
 
     let sumtest = data.reduce((sum, item) => sum + item.value, 0)
-    console.log(`sumtest :`, sumtest)
 
     const totalVaultValue = formatValue(data.reduce((sum, item) => sum + item.value, 0));
-    console.log(`totalVaultValue :`, totalVaultValue)
     const COLORS = colorKeys.map((_, index) => generateColorPalette(colorKeys.length)[index]);
 
   
@@ -834,6 +912,121 @@ const RechartsDashboard = () => {
     );
   };
   
+  const renderInsights2 = (
+    totalRaindexTrades,
+    totalRaindexVolume,
+    totalRaindexTradesAllTime,
+    totalRaindexVolumeAllTimeTokenDenominated
+  ) => {
+    const pieDataTrades = [
+      { name: "Raindex Trades For Duration", value: totalRaindexTrades, percentage: ((totalRaindexTrades / totalRaindexTradesAllTime) * 100).toFixed(1) },
+      { name: "Raindex Trades All Time", value: (totalRaindexTradesAllTime - totalRaindexTrades) , percentage: (((totalRaindexTradesAllTime - totalRaindexTrades) / totalRaindexTradesAllTime) * 100).toFixed(1) }
+
+    ];
+  
+    const pieDataVolume = [
+      { name: "Raindex Volume For Duration", value: totalRaindexVolume, percentage: ((totalRaindexVolume / totalRaindexVolumeAllTimeTokenDenominated) * 100).toFixed(1) },
+      { name: "Raindex Volume All Time", value: (totalRaindexVolumeAllTimeTokenDenominated - totalRaindexVolume), percentage: (((totalRaindexVolumeAllTimeTokenDenominated - totalRaindexVolume) / totalRaindexVolumeAllTimeTokenDenominated) * 100).toFixed(1) },
+
+    ];
+  
+    const COLORS = pieDataVolume.map((_, index) => generateColorPalette(2)[index]);
+  
+    const formatTotalVolume = formatValue(totalRaindexVolumeAllTimeTokenDenominated);
+  
+    return (
+      <div className="p-5">
+        {/* Header Section */}
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-gray-800">Historical Insights</h1>
+          <p className="text-gray-600">{tokenConfig[reportToken.toUpperCase()].symbol} Historical Raindex Trades and Volume</p>
+        </div>
+  
+        {/* Pie Charts Section */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Trades Pie Chart */}
+          <div className="bg-white shadow-md rounded-lg p-5">
+            <h3 className="text-lg font-semibold text-gray-700 text-center mb-4">
+              Trades Distribution
+            </h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={pieDataTrades}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={70}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {pieDataTrades.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <text x="50%" y="50%" dy={8} textAnchor="middle" fill={"#0A1320"}>
+                  Total: {totalRaindexTradesAllTime}
+                </text>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+  
+          {/* Volume Pie Chart */}
+          <div className="bg-white shadow-md rounded-lg p-5">
+            <h3 className="text-lg font-semibold text-gray-700 text-center mb-4">
+              Volume Distribution
+            </h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={pieDataVolume}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={70}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {pieDataVolume.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <text x="50%" y="50%" dy={8} textAnchor="middle" fill={"#0A1320"}>
+                  Total: {formatTotalVolume.toString()}
+                </text>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+  
+        {/* Commentary Section */}
+        <div className="mt-8 bg-gray-100 p-4 rounded-lg shadow-md">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Key Statistics</h3>
+          <ul className="list-disc list-inside text-gray-700 space-y-2">
+            <li>
+              Total Raindex Trades for the duration:{" "}
+              <strong>{totalRaindexTrades.toLocaleString()}</strong>
+            </li>
+            <li>
+              Total Raindex Trades (All Time):{" "}
+              <strong>{totalRaindexTradesAllTime.toLocaleString()}</strong>
+            </li>
+            <li>
+              Total Raindex Volume (Token-Denominated) for the duration:{" "}
+              <strong>{formatValue(totalRaindexVolume)} {tokenConfig[reportToken.toUpperCase()].symbol}</strong>
+            </li>
+            <li>
+              Total Raindex Volume (All Time):{" "}
+              <strong>{formatValue(totalRaindexVolumeAllTimeTokenDenominated)} {tokenConfig[reportToken.toUpperCase()].symbol}</strong>
+            </li>
+          </ul>
+        </div>
+      </div>
+    );
+  };
+  
   
   
   const renderInsights = (totalRaindexTrades, totalExternalTrades, totalRaindexVolume, totalExternalVolume) => {
@@ -852,9 +1045,7 @@ const RechartsDashboard = () => {
     ];
   
     const COLORS = pieDataVolume.map((_, index) => generateColorPalette(2)[index]);
-
-  console.log(`************************** : `, totalVolume)
-    
+   
   const formatTotalVolume = formatValue(totalVolume)
   
     return (
@@ -1058,16 +1249,14 @@ const RechartsDashboard = () => {
             ``
           )
         }
-        {vaultUtilizationData.length > 0 &&
-          vaultUtilizationStats.length > 0 &&
-          renderBarChart(
-            vaultUtilizationData,
+        {
+          renderUtilizationVisualization(
+            vaultVolume,
+            vaultBalance,
             "Vault Utilization",
-            "USD",
-            vaultUtilizationStats,
-            vaultUtilizationStats.map((item) => item.name),
             ``
-          )}
+          )
+        }
         {
           orderVolumeData.length > 0 &&
           orderVolumeStats.length > 0 &&
@@ -1093,6 +1282,16 @@ const RechartsDashboard = () => {
             `${tokenConfig[reportToken.toUpperCase()].symbol} Vaults`,
             ``
           )
+        }
+        {
+          
+            renderInsights2(
+              totalRaindexTrades,
+              totalRaindexVolumeTokenDenominated,
+              totalRaindexTradesAllTime,
+              totalRaindexVolumeAllTimeTokenDenominated
+            )
+          
         }
       </div>
       <div className="mt-8 bg-gray-100 text-gray-700 text-base p-6 rounded-lg">
