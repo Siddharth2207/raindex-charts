@@ -27,7 +27,7 @@ const Header = () => (
           </li>
           <li>
             <Link
-              to="/reports/ioen/daily"
+              to="/reports"
               className="text-indigo-600 font-semibold text-lg no-underline"
             >
               Market Reports
@@ -47,7 +47,7 @@ const App = () => {
         <Routes>
           <Route path="/" element={<RaindexVisualization />} />
           <Route
-            path="/reports/:reportToken/:reportDuration"
+            path="/reports"
             element={<RechartsDashboard />}
           />
         </Routes>
