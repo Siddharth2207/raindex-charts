@@ -9,7 +9,7 @@ import {
 } from "recharts";
 import React, { useState, useEffect } from "react";
 import {analyzeLiquidity,fetchAndFilterOrders,tokenMetrics, orderMetrics,calculateCombinedVaultBalance,volumeMetrics,tokenConfig, networkConfig} from "raindex-reports"
-import { useParams } from "react-router-dom";
+import TopBarWithFilters from "./TopBarWithFilters"; // Assuming you have created this component
 import { PieChart, Pie, Cell } from 'recharts';
 import { ethers } from "ethers";
 
@@ -48,10 +48,11 @@ function hslToHex(h, s, l) {
 export { generateColorPalette, hslToHex };
 
 const RechartsDashboard = () => {
-
+  const [initialized, setInitialized] = useState(false);
   const [loading, setLoading] = useState(true); 
   const [error, setError] = useState(null);
-  const { reportToken, reportDuration } = useParams();
+  const [customRange, setCustomRange] = useState({ from: null, to: null });
+  const [selectedToken, setSelectedToken] = useState('IOEN');
 
   const [vaultData, setVaultData] = useState([]);
   const [vaultStats, setVaultStats] = useState([]);
@@ -62,99 +63,103 @@ const RechartsDashboard = () => {
   const [orderVolumeData, setOrderVolumeData] = useState([]);
   const [orderVolumeStats, setOrderVolumeStats] = useState([]);
   const [reportDurationInSeconds, setReportDurationInSeconds] = useState(0);
-  const [vaultUtilizationData, setVaultUtilizationData] = useState([]);
-  const [vaultUtilizationStats, setVaultUtilizationStats] = useState([]);
+  const [vaultVolume, setVaultVolume] = useState(0);
+  const [vaultBalance, setVaultBalance] = useState(0);
 
   const [totalRaindexTrades, setTotalRaindexTrades] = useState(0);
   const [totalExternalTrades, setTotalExternalTrades] = useState(0);
+  const [totalRaindexTradesAllTime, setTotalRaindexTradesAllTime] = useState(0);
+
   const [totalRaindexVolume, setTotalRaindexVolume] = useState(0);
   const [totalExternalVolume, setTotalExternalVolume] = useState(0);
+  const [totalRaindexVolumeTokenDenominated, setTotalRaindexVolumeTokenDenominated] = useState(0);
+  const [totalRaindexVolumeAllTimeTokenDenominated, setTotalRaindexVolumeAllTimeTokenDenominated] = useState(0);
 
   const [orderMetricsData, setOrderMetricsData] = useState([]);
   const [orderMetricsStats, setOrderMetricsStats] = useState([]);
   const [activeOrders, setOctiveOrders] = useState(null);
   const [allOrders, setAllOrders] = useState(null);
 
-  
-
-
-
-
   useEffect(() => {
-      const setData = async () => {
-      try{
-        const token = reportToken.toUpperCase()
-        const network = tokenConfig[token]?.network
-        const durationToSeconds = {
-            daily: 24 * 60 * 60,
-            weekly: 7 * 24 * 60 * 60,
-            monthly: 30 * 24 * 60 * 60,
-        };
-        const durationInSeconds = durationToSeconds[reportDuration] ?? 0;
-
-        setReportDurationInSeconds(durationInSeconds);
-        const { filteredActiveOrders, filteredInActiveOrders } = await fetchAndFilterOrders(
-            token,
-            network,
-        );
-        setOctiveOrders(filteredActiveOrders)
-        const allOrders = filteredActiveOrders.concat(filteredInActiveOrders);
-        setAllOrders(allOrders);
-        const currentGracePeriod = 300
-        const toTimestamp = Math.floor(new Date().getTime() / 1000) - currentGracePeriod;
-        const fromTimestamp = toTimestamp - durationInSeconds;
-
-        const {orderMetricsData: orderMetricsDataRaindex, logMessages: orderMetricsLogs} = await orderMetrics(filteredActiveOrders, filteredInActiveOrders, fromTimestamp, toTimestamp);
-        const { chartData: orderMetricsData, stats: orderMetricsStats } = prepareStackedBarChartData(orderMetricsDataRaindex);
-
-        setOrderMetricsData(orderMetricsData)
-        setOrderMetricsStats(orderMetricsStats)
-        
-        const {tokenVaultSummary} = await tokenMetrics(filteredActiveOrders);
-        const {vaultData, vaultStats} = prepareVaultDataAndStats(tokenVaultSummary);
-
-        setVaultData(vaultData)
-        setVaultStats(vaultStats)
-
-        const {totalTokenVolForDurationUsd,totalTradesForDuration,totalRaindexTrades,aggregatedResultsForToken,volumeDistributionForToken,tradeData, tradeStats, volumeData, volumeStats} = await prepareTradeAndVolumeStats(token,network,allOrders,durationInSeconds);
-  
-
-        setTradeData(tradeData)
-        setTradeStats(tradeStats)
-        setVolumeData(volumeData)
-        setVolumeStats(volumeStats) 
-        setTotalRaindexTrades(totalRaindexTrades)
-        setTotalExternalTrades(totalTradesForDuration - totalRaindexTrades)
-
-        const { orderVolumeData, orderVolumeStats } = prepareOrderVolumeData(volumeDistributionForToken)
-        setOrderVolumeData(orderVolumeData)
-        setOrderVolumeStats(orderVolumeStats)
-
-        const tokenAddress = tokenConfig[token]?.address.toLowerCase();
-        const totalRaindexVolumeUsd = Number(
-          aggregatedResultsForToken?.find((e) => e.address.toLowerCase() === tokenAddress)
-                ?.totalVolumeForDurationUsd || 0,
-        );
-        
-        setTotalRaindexVolume(totalRaindexVolumeUsd)
-        setTotalExternalVolume(totalTokenVolForDurationUsd-totalRaindexVolumeUsd)
-
-
-        const combinedBalance = await calculateCombinedVaultBalance(allOrders);
-        const {vaultUtilizationData, vaultUtilizationStats} = prepareVaultUtilizationData(
-          token,
-          aggregatedResultsForToken,
-          combinedBalance
-        );
-        setVaultUtilizationData(vaultUtilizationData);
-        setVaultUtilizationStats(vaultUtilizationStats);
-        setLoading(false);
-      }catch(error){
-        setError(error)
-      }
+    if (customRange.from && customRange.to && selectedToken) {
+      const currentGracePeriod = 300
+      const fromTimestamp = Math.floor(new Date(customRange.from).getTime() / 1000);
+      const toTimestamp = Math.floor(new Date(customRange.to).getTime() / 1000) - currentGracePeriod;
+      fetchAndSetData(selectedToken, fromTimestamp, toTimestamp);
     }
-    setData();
-  }, [reportToken,reportDuration]);
+  }, [customRange, selectedToken]);
+
+  const fetchAndSetData = async (token, fromTimestamp, toTimestamp) => {
+    try{
+      const network = tokenConfig[token]?.network
+      const durationInSeconds = toTimestamp - fromTimestamp;
+
+      setReportDurationInSeconds(durationInSeconds);
+      const { filteredActiveOrders, filteredInActiveOrders } = await fetchAndFilterOrders(
+          token,
+          network,
+      );
+      setOctiveOrders(filteredActiveOrders)
+      const allOrders = filteredActiveOrders.concat(filteredInActiveOrders);
+      setAllOrders(allOrders);
+      
+      const {orderMetricsData: orderMetricsDataRaindex, logMessages} = await orderMetrics(filteredActiveOrders, filteredInActiveOrders, fromTimestamp, toTimestamp);
+      const { chartData: orderMetricsData, stats: orderMetricsStats } = prepareStackedBarChartData(orderMetricsDataRaindex);
+
+      setOrderMetricsData(orderMetricsData)
+      setOrderMetricsStats(orderMetricsStats)
+      const {tokenVaultSummary} = await tokenMetrics(filteredActiveOrders);
+      const {vaultData, vaultStats} = prepareVaultDataAndStats(tokenVaultSummary);
+
+      setVaultData(vaultData)
+      setVaultStats(vaultStats)
+
+      const {totalTokenVolForDurationUsd,totalTradesForDuration,totalRaindexTrades,totalRaindexTradesAllTimeForToken,aggregatedResultsForToken,volumeDistributionForToken,tradeData, tradeStats, volumeData, volumeStats} = await prepareTradeAndVolumeStats(token,network,allOrders,durationInSeconds);
+    
+      setTradeData(tradeData)
+      setTradeStats(tradeStats)
+      setVolumeData(volumeData)
+      setVolumeStats(volumeStats) 
+      setTotalRaindexTrades(totalRaindexTrades)
+      setTotalExternalTrades(totalTradesForDuration - totalRaindexTrades)
+      setTotalRaindexTradesAllTime(totalRaindexTradesAllTimeForToken)
+
+      const { orderVolumeData, orderVolumeStats } = prepareOrderVolumeData(volumeDistributionForToken)
+      setOrderVolumeData(orderVolumeData)
+      setOrderVolumeStats(orderVolumeStats)
+
+      const tokenAddress = tokenConfig[token]?.address.toLowerCase();
+      const totalRaindexVolumeUsd = Number(
+        aggregatedResultsForToken?.find((e) => e.address.toLowerCase() === tokenAddress)
+              ?.totalVolumeForDurationUsd || 0,
+      );
+      const totalRaindexVolumeInToken = Number(
+        aggregatedResultsForToken?.find((e) => e.address.toLowerCase() === tokenAddress)
+              ?.totalVolumeForDuration || 0,
+      );
+      const totalRaindexVolumeAllTimeInToken = Number(
+        aggregatedResultsForToken?.find((e) => e.address.toLowerCase() === tokenAddress)
+              ?.totalVolumeAllTime || 0,
+      );
+      
+      setTotalRaindexVolume(totalRaindexVolumeUsd)
+      setTotalExternalVolume(totalTokenVolForDurationUsd-totalRaindexVolumeUsd)
+      setTotalRaindexVolumeTokenDenominated(totalRaindexVolumeInToken)
+      setTotalRaindexVolumeAllTimeTokenDenominated(totalRaindexVolumeAllTimeInToken)
+
+      const combinedBalance = await calculateCombinedVaultBalance(allOrders);
+      const {usedVaultBalance} = prepareVaultUtilizationData(
+        token,
+        aggregatedResultsForToken
+      );
+      setVaultVolume(usedVaultBalance);
+      setVaultBalance(combinedBalance);
+
+      setLoading(false);
+    }catch(error){
+      setError(error)
+    }
+  }
 
   const prepareVaultDataAndStats = (tokenVaultSummary) => {
     if (!tokenVaultSummary || tokenVaultSummary.length === 0) return { vaultData: [], vaultStats: [] };
@@ -220,7 +225,6 @@ const RechartsDashboard = () => {
     return { chartData, stats };
   }
   
-
   const prepareTradeAndVolumeStats = async (token,network,allOrders,durationInSeconds) => {
 
       let toTimestamp = Math.floor(new Date().getTime() / 1000) - 300;
@@ -228,15 +232,16 @@ const RechartsDashboard = () => {
       let tradeData = [[]]
       let volumeData = [[]]
       
-      let totalTokenVolForDurationUsd,totalTradesForDuration,totalRaindexTrades,aggregatedResultsForToken,volumeDistributionForToken
+      let totalTokenVolForDurationUsd,totalTradesForDuration,totalRaindexTrades,totalRaindexTradesAllTimeForToken,aggregatedResultsForToken,volumeDistributionForToken
       
-      for(let i = 0; i < 3; i++){
+      for(let i = 0; i < 1; i++){
           const {
             totalTokenExternalVolForDurationUsd,
             totalTokenExternalTradesForDuration,
           } = await analyzeLiquidity(network,token,fromTimestamp,toTimestamp);
           const {
             tradesLastForDuration: totalRaindexTradesForDuration,
+            tradesAllTime: totalRaindexTradesAllTime,
             aggregatedResults,
             volumeDistributionForDuration
           } = await volumeMetrics(network, allOrders, fromTimestamp, toTimestamp, token);
@@ -245,7 +250,6 @@ const RechartsDashboard = () => {
               aggregatedResults?.find((e) => e.address.toLowerCase() === tokenAddress)
                   ?.totalVolumeForDurationUsd || 0,
           );
-
           const totalExternalTrades =
               totalTokenExternalTradesForDuration - totalRaindexTradesForDuration;
           const totalExternalVolumeUsd = totalTokenExternalVolForDurationUsd - totalRaindexVolumeUsd;
@@ -258,10 +262,11 @@ const RechartsDashboard = () => {
           volumeData[0][i] = {name: `${formattedDate}`, Raindex: totalRaindexVolumeUsd.toFixed(2), External: totalExternalVolumeUsd, total: totalTokenExternalVolForDurationUsd};
           toTimestamp = fromTimestamp;
           fromTimestamp = toTimestamp - durationInSeconds;
-          if(i == 0){
+          if(i === 0){
             totalTokenVolForDurationUsd = totalTokenExternalVolForDurationUsd
             totalTradesForDuration = totalTokenExternalTradesForDuration
             totalRaindexTrades = totalRaindexTradesForDuration
+            totalRaindexTradesAllTimeForToken = totalRaindexTradesAllTime
             aggregatedResultsForToken = aggregatedResults
             volumeDistributionForToken = volumeDistributionForDuration
           }
@@ -277,7 +282,7 @@ const RechartsDashboard = () => {
         { name: "External"},
       ];
 
-      return {totalTokenVolForDurationUsd,totalTradesForDuration,totalRaindexTrades,aggregatedResultsForToken,volumeDistributionForToken,tradeData, tradeStats, volumeData, volumeStats}
+      return {totalTokenVolForDurationUsd,totalTradesForDuration,totalRaindexTrades,totalRaindexTradesAllTimeForToken,aggregatedResultsForToken,volumeDistributionForToken,tradeData, tradeStats, volumeData, volumeStats}
         
   }
 
@@ -347,43 +352,111 @@ const RechartsDashboard = () => {
 
   const prepareVaultUtilizationData = (
     token,
-    aggregatedResults,
-    combinedBalance
+    aggregatedResults
   ) => {
     const tokenAddress = tokenConfig[token]?.address.toLowerCase();
     const usedVaultBalance = Number(
         aggregatedResults?.find((e) => e.address.toLowerCase() === tokenAddress)
             ?.totalVolumeForDurationUsd || 0,
-    );
-    
-    const unusedVaultBalance = Math.max(combinedBalance - usedVaultBalance, 0);
-    const vaultUtilizationData = [
-      {
-        name: "Balance",
-        "Volume": usedVaultBalance,
-        "Unused": unusedVaultBalance,
-        total: combinedBalance,
-      },
-    ];
-    const usedPercentage =  ((usedVaultBalance / combinedBalance) * 100).toFixed(2);
-    const unusedPercentage =  (((unusedVaultBalance) / combinedBalance) * 100).toFixed(2);
-
-    const vaultUtilizationStats = [
-      { name: "Volume", value: `$${usedVaultBalance}`, percentage: `${usedPercentage}` },
-      { name: "Unused", value: `$${(unusedVaultBalance)}`, percentage: `${unusedPercentage}` },
-    ];
-
-    return {vaultUtilizationData, vaultUtilizationStats}
-
+    ); 
+    return {usedVaultBalance}
   }
-  
   
   function abbreviateHash(hash) {
     return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
   }
   
-  const currentTimestamp = new Date()
-
+  const renderUtilizationVisualization = (volume, balance, title, subtitle) => {
+    const utilizationRate = ((volume / balance) * 100).toFixed(1);
+  
+    // Corrected pieData for utilization visualization
+    const pieData = [
+      { name: "Utilized", value: volume },
+      { name: "Remaining", value: balance - volume },
+    ];
+  
+    const COLORS = pieData.map((_, index) =>
+      generateColorPalette(pieData.length)[index]
+    );
+  
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-4 flex flex-col gap-6">
+        {/* Chart Title */}
+        <h3 className="text-md font-semibold text-center text-gray-800">
+          {title}
+        </h3>
+  
+        {/* Subtitle */}
+        {subtitle && (
+          <p className="text-sm text-center text-gray-600">{subtitle}</p>
+        )}
+  
+        {/* Dynamic Scale Display */}
+        <div className="bg-gray-100 p-3 rounded-md flex justify-center items-center flex-col">
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">
+            Scale
+          </h4>
+          <div className="flex items-center text-gray-700 text-base">
+            <span className="text-blue-500 font-bold">
+              ${volume.toLocaleString()}
+            </span>
+            <span className="mx-2">/</span>
+            <span className="text-gray-700 font-bold">
+              ${balance.toLocaleString()}
+            </span>
+          </div>
+          <div className="text-blue-500 text-lg font-bold mt-2">
+            {utilizationRate}%
+          </div>
+          <p className="text-sm text-gray-700">Utilization Rate</p>
+        </div>
+  
+        {/* Spiral Utilization Pie Chart */}
+        <div className="bg-gray-100 p-3 rounded-md flex flex-col items-center">
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">
+            Utilization
+          </h4>
+          <ResponsiveContainer width="100%" height={150}>
+            <PieChart>
+              <Pie
+                data={pieData}
+                cx="50%"
+                cy="50%"
+                innerRadius={30}
+                outerRadius={50}
+                fill="#8884d8"
+                paddingAngle={2}
+                dataKey="value"
+                label={({ name, value }) =>
+                  `${name}: ${(value / balance * 100).toFixed(1)}%`
+                }
+              >
+                {pieData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value) => `$${value.toLocaleString()}`} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
+              <span className="text-sm text-gray-700">
+                Volume: ${volume.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-gray-300 rounded-full"></span>
+              <span className="text-sm text-gray-700">
+                Remaining: ${(balance - volume).toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+    
   const renderBarChart = (data, title, yAxisLabel, stats, colorKeys, subtitle) => {
 
     // Generate color palette dynamically for the bar chart based on colorKeys length
@@ -638,19 +711,13 @@ const RechartsDashboard = () => {
   }; 
 
   const renderPieChart = ( title, stats, colorKeys, subtitle) => {
-   console.log("stats : ", stats)
     const data = stats.map(item => ({
       ...item,
       value: parseFloat(item.value.replace(/[^0-9.-]+/g, "")),
       percentage: parseFloat(item.percentage),
     }));
-    console.log(`data :`, JSON.stringify(data,null,2))
-
-    let sumtest = data.reduce((sum, item) => sum + item.value, 0)
-    console.log(`sumtest :`, sumtest)
 
     const totalVaultValue = formatValue(data.reduce((sum, item) => sum + item.value, 0));
-    console.log(`totalVaultValue :`, totalVaultValue)
     const COLORS = colorKeys.map((_, index) => generateColorPalette(colorKeys.length)[index]);
 
   
@@ -834,6 +901,121 @@ const RechartsDashboard = () => {
     );
   };
   
+  const renderHistoricalData = (
+    totalRaindexTrades,
+    totalRaindexVolume,
+    totalRaindexTradesAllTime,
+    totalRaindexVolumeAllTimeTokenDenominated
+  ) => {
+    const pieDataTrades = [
+      { name: "Raindex Trades For Duration", value: totalRaindexTrades, percentage: ((totalRaindexTrades / totalRaindexTradesAllTime) * 100).toFixed(1) },
+      { name: "Raindex Trades All Time", value: (totalRaindexTradesAllTime - totalRaindexTrades) , percentage: (((totalRaindexTradesAllTime - totalRaindexTrades) / totalRaindexTradesAllTime) * 100).toFixed(1) }
+
+    ];
+  
+    const pieDataVolume = [
+      { name: "Raindex Volume For Duration", value: totalRaindexVolume, percentage: ((totalRaindexVolume / totalRaindexVolumeAllTimeTokenDenominated) * 100).toFixed(1) },
+      { name: "Raindex Volume All Time", value: (totalRaindexVolumeAllTimeTokenDenominated - totalRaindexVolume), percentage: (((totalRaindexVolumeAllTimeTokenDenominated - totalRaindexVolume) / totalRaindexVolumeAllTimeTokenDenominated) * 100).toFixed(1) },
+
+    ];
+  
+    const COLORS = pieDataVolume.map((_, index) => generateColorPalette(2)[index]);
+  
+    const formatTotalVolume = formatValue(totalRaindexVolumeAllTimeTokenDenominated);
+  
+    return (
+      <div className="p-5">
+        {/* Header Section */}
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-gray-800">Historical Insights</h1>
+          <p className="text-gray-600">{tokenConfig[selectedToken.toUpperCase()].symbol} Historical Raindex Trades and Volume</p>
+        </div>
+  
+        {/* Pie Charts Section */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Trades Pie Chart */}
+          <div className="bg-white shadow-md rounded-lg p-5">
+            <h3 className="text-lg font-semibold text-gray-700 text-center mb-4">
+              Trades Distribution
+            </h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={pieDataTrades}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={70}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {pieDataTrades.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <text x="50%" y="50%" dy={8} textAnchor="middle" fill={"#0A1320"}>
+                  Total: {totalRaindexTradesAllTime}
+                </text>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+  
+          {/* Volume Pie Chart */}
+          <div className="bg-white shadow-md rounded-lg p-5">
+            <h3 className="text-lg font-semibold text-gray-700 text-center mb-4">
+              Volume Distribution
+            </h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={pieDataVolume}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={70}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {pieDataVolume.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <text x="50%" y="50%" dy={8} textAnchor="middle" fill={"#0A1320"}>
+                  Total: {formatTotalVolume.toString()}
+                </text>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+  
+        {/* Commentary Section */}
+        <div className="mt-8 bg-gray-100 p-4 rounded-lg shadow-md">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Key Statistics</h3>
+          <ul className="list-disc list-inside text-gray-700 space-y-2">
+            <li>
+              Total Raindex Trades for the duration:{" "}
+              <strong>{totalRaindexTrades.toLocaleString()}</strong>
+            </li>
+            <li>
+              Total Raindex Trades (All Time):{" "}
+              <strong>{totalRaindexTradesAllTime.toLocaleString()}</strong>
+            </li>
+            <li>
+              Total Raindex Volume (Token-Denominated) for the duration:{" "}
+              <strong>{formatValue(totalRaindexVolume)} {tokenConfig[selectedToken.toUpperCase()].symbol}</strong>
+            </li>
+            <li>
+              Total Raindex Volume (All Time):{" "}
+              <strong>{formatValue(totalRaindexVolumeAllTimeTokenDenominated)} {tokenConfig[selectedToken.toUpperCase()].symbol}</strong>
+            </li>
+          </ul>
+        </div>
+      </div>
+    );
+  };
+  
   
   
   const renderInsights = (totalRaindexTrades, totalExternalTrades, totalRaindexVolume, totalExternalVolume) => {
@@ -852,9 +1034,7 @@ const RechartsDashboard = () => {
     ];
   
     const COLORS = pieDataVolume.map((_, index) => generateColorPalette(2)[index]);
-
-  console.log(`************************** : `, totalVolume)
-    
+   
   const formatTotalVolume = formatValue(totalVolume)
   
     return (
@@ -972,154 +1152,187 @@ const RechartsDashboard = () => {
     );
 
   }
-
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
-        <div className="spinner w-10 h-10 border-4 border-gray-300 border-t-indigo-500 rounded-full animate-spin"></div>
-        <p>Loading...</p>
-      </div>
-    );
-  }
+  const handleFiltersApply = (range, token) => {
+    
+    setCustomRange(range);
+    setSelectedToken(token);
+    setInitialized(true);
+    setLoading(true);
+  };
   
   if (error) {
     return <div>Error: {error}</div>;
   }
-
   return (
-    <div className="max-w-screen-3xl mx-auto p-8 bg-gray-100 rounded-lg shadow-lg">
-      <div className="p-6 bg-gray-100 border-b border-gray-300">
-        <div className="flex justify-between items-start">
-          {/* Title Section */}
-          <h1 className="text-2xl font-bold text-gray-800">
-            {reportToken.toUpperCase()} Market Analysis Report
-          </h1>
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <TopBarWithFilters
+        onApplyFilters={handleFiltersApply}
+        tokenOptions={Object.keys(tokenConfig)} // Add your token options here
+      />
+      {
+        initialized ?
+        (          
+          loading ? 
+          (
+            <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
+              <div className="spinner w-10 h-10 border-4 border-gray-300 border-t-indigo-500 rounded-full animate-spin"></div>
+              <p>Loading...</p>
+            </div>
+          ):
+          (
+            <div className="max-w-screen-3xl mx-auto p-8 bg-gray-100 rounded-lg shadow-lg">
+              <div className="p-6 bg-gray-100 border-b border-gray-300">
+                <div className="flex justify-between items-start">
+                  {/* Title Section */}
+                  <h1 className="text-2xl font-bold text-gray-800">
+                    {selectedToken.toUpperCase()} Market Analysis Report
+                  </h1>
 
-          {/* Info Section */}
-          <div className="text-right space-y-4">
-            <div>
-              <span className="block font-semibold text-gray-600">Report generated at:</span>
-              <p className="text-gray-700">{new Date(currentTimestamp).toLocaleString()}</p>
+                  {/* Info Section */}
+                  <div className="text-right space-y-4">
+                    <div>
+                      <span className="block font-semibold text-gray-600">Report generated at:</span>
+                      <p className="text-gray-700">{new Date().toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <span className="block font-semibold text-gray-600">Report duration:</span>
+                      <p className="text-gray-700">
+                        {new Date(customRange.from).toLocaleString()} -{" "}
+                        {new Date(customRange.to).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-5 md:grid-cols-3 sm:grid-cols-1">
+                {
+                  renderBarChart(
+                    orderMetricsData,
+                    "Order Metrics",
+                    "Orders",
+                    orderMetricsStats,
+                    ['Active','InActive'],
+                    ``
+                  )
+                }
+                {tradeData.length > 0 &&
+                  tradeStats.length > 0 &&
+                  renderVolBarChart(
+                    tradeData,
+                    "Trade Distribution",
+                    "Trades",
+                    tradeStats.map((item) => item.name),
+                    `Trades over time`
+                )}
+                {volumeData.length > 0 &&
+                  volumeStats.length > 0 &&
+                  renderVolBarChart(
+                    volumeData,
+                    "Volume Distribution",
+                    "Volume",
+                    volumeStats.map((item) => item.name),
+                    `Volume over time`
+                )}
+                {
+                  renderInsights(
+                    totalRaindexTrades,
+                    totalExternalTrades,
+                    totalRaindexVolume,
+                    totalExternalVolume
+                  )
+                }
+                {vaultData.length > 0 &&
+                  vaultStats.length > 0 &&
+                  renderPieChart(
+                    "Vault Distribution",
+                    vaultStats,
+                    vaultStats.map((item) => item.name),
+                    ``
+                  )
+                }
+                {
+                  renderUtilizationVisualization(
+                    vaultVolume,
+                    vaultBalance,
+                    "Vault Utilization",
+                    ``
+                  )
+                }
+                {
+                  orderVolumeData.length > 0 &&
+                  orderVolumeStats.length > 0 &&
+                  renderPieChart(
+                    "Volume by Order",
+                    orderVolumeStats,
+                    orderVolumeStats.map((item) => item.name),
+                    ``
+                  )
+                }
+                {
+                  activeOrders.length > 0 &&
+                  renderVaultList(
+                    activeOrders
+                  )
+                }
+
+                {
+                  allOrders &&
+                  allOrders.length > 0 &&
+                  renderVaultPieChart(
+                    allOrders,
+                    `${tokenConfig[selectedToken.toUpperCase()].symbol} Vaults`,
+                    ``
+                  )
+                }
+                {
+                  
+                    renderHistoricalData(
+                      totalRaindexTrades,
+                      totalRaindexVolumeTokenDenominated,
+                      totalRaindexTradesAllTime,
+                      totalRaindexVolumeAllTimeTokenDenominated
+                    )
+                  
+                }
+              </div>
+              <div className="mt-8 bg-gray-100 text-gray-700 text-base p-6 rounded-lg">
+                <h3 className="text-left font-semibold text-lg mb-4">Data Sources</h3>
+                <ul className="list-disc list-inside space-y-2">
+                  <li>
+                    <a
+                      href="https://docs.envio.dev/docs/HyperSync/overview"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      HyperSync Documentation
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href={networkConfig[tokenConfig[selectedToken.toUpperCase()]?.network].subgraphUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      Raindex Subgraph API
+                    </a>
+                  </li>
+                </ul>
+              </div>
             </div>
-            <div>
-              <span className="block font-semibold text-gray-600">Report duration:</span>
-              <p className="text-gray-700">
-                {new Date(new Date(currentTimestamp) - reportDurationInSeconds * 1000).toLocaleString()} -{" "}
-                {new Date(currentTimestamp).toLocaleString()}
-              </p>
-            </div>
+          )
+        ):
+        (
+          <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg shadow-md p-6 text-center">
+            <p className="text-gray-700">
+              Please select a <span className="text-blue-900 font-medium">date range</span> and a <span className="text-blue-900 font-medium">token</span> to filter the data.
+            </p>
+            
           </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-5 md:grid-cols-3 sm:grid-cols-1">
-        {
-          renderBarChart(
-            orderMetricsData,
-            "Order Metrics",
-            "Orders",
-            orderMetricsStats,
-            ['Active','InActive'],
-            ``
-          )
-        }
-        {tradeData.length > 0 &&
-          tradeStats.length > 0 &&
-          renderVolBarChart(
-            tradeData,
-            "Trade Distribution",
-            "Trades",
-            tradeStats.map((item) => item.name),
-            `Trades over time`
-        )}
-        {volumeData.length > 0 &&
-          volumeStats.length > 0 &&
-          renderVolBarChart(
-            volumeData,
-            "Volume Distribution",
-            "Volume",
-            volumeStats.map((item) => item.name),
-            `Volume over time`
-        )}
-        {
-          renderInsights(
-            totalRaindexTrades,
-            totalExternalTrades,
-            totalRaindexVolume,
-            totalExternalVolume
-          )
-        }
-        {vaultData.length > 0 &&
-          vaultStats.length > 0 &&
-          renderPieChart(
-            "Vault Distribution",
-            vaultStats,
-            vaultStats.map((item) => item.name),
-            ``
-          )
-        }
-        {vaultUtilizationData.length > 0 &&
-          vaultUtilizationStats.length > 0 &&
-          renderBarChart(
-            vaultUtilizationData,
-            "Vault Utilization",
-            "USD",
-            vaultUtilizationStats,
-            vaultUtilizationStats.map((item) => item.name),
-            ``
-          )}
-        {
-          orderVolumeData.length > 0 &&
-          orderVolumeStats.length > 0 &&
-          renderPieChart(
-            "Volume by Order",
-            orderVolumeStats,
-            orderVolumeStats.map((item) => item.name),
-            ``
-          )
-        }
-        {
-          activeOrders.length > 0 &&
-          renderVaultList(
-            activeOrders
-          )
-        }
-
-        {
-          allOrders &&
-          allOrders.length > 0 &&
-          renderVaultPieChart(
-            allOrders,
-            `${tokenConfig[reportToken.toUpperCase()].symbol} Vaults`,
-            ``
-          )
-        }
-      </div>
-      <div className="mt-8 bg-gray-100 text-gray-700 text-base p-6 rounded-lg">
-        <h3 className="text-left font-semibold text-lg mb-4">Data Sources</h3>
-        <ul className="list-disc list-inside space-y-2">
-          <li>
-            <a
-              href="https://docs.envio.dev/docs/HyperSync/overview"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
-              HyperSync Documentation
-            </a>
-          </li>
-          <li>
-            <a
-              href={networkConfig[tokenConfig[reportToken.toUpperCase()]?.network].subgraphUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
-              Raindex Subgraph API
-            </a>
-          </li>
-        </ul>
-      </div>
+        )
+      }
     </div>
   );
 };
