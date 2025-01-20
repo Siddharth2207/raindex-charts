@@ -5,10 +5,10 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  LabelList
+  LabelList, AreaChart, Area, CartesianGrid
 } from "recharts";
 import React, { useState, useEffect } from "react";
-import {analyzeLiquidity,fetchAndFilterOrders,tokenMetrics, orderMetrics,calculateCombinedVaultBalance,volumeMetrics,tokenConfig, networkConfig} from "raindex-reports"
+import {analyzeLiquidity,fetchAndFilterOrders,tokenMetrics, orderMetrics,calculateCombinedVaultBalance,volumeMetrics,tokenConfig, networkConfig, fetchAllPaginatedData} from "raindex-reports"
 import TopBarWithFilters from "./TopBarWithFilters"; // Assuming you have created this component
 import { PieChart, Pie, Cell } from 'recharts';
 import { ethers } from "ethers";
@@ -79,6 +79,7 @@ const RechartsDashboard = () => {
   const [orderMetricsStats, setOrderMetricsStats] = useState([]);
   const [activeOrders, setOctiveOrders] = useState(null);
   const [allOrders, setAllOrders] = useState(null);
+  const [vaults, setVaults] = useState([]);
 
   useEffect(() => {
     if (customRange.from && customRange.to && selectedToken) {
@@ -103,7 +104,7 @@ const RechartsDashboard = () => {
       const allOrders = filteredActiveOrders.concat(filteredInActiveOrders);
       setAllOrders(allOrders);
       
-      const {orderMetricsData: orderMetricsDataRaindex, logMessages} = await orderMetrics(filteredActiveOrders, filteredInActiveOrders, fromTimestamp, toTimestamp);
+      const {orderMetricsData: orderMetricsDataRaindex} = await orderMetrics(filteredActiveOrders, filteredInActiveOrders, fromTimestamp, toTimestamp);
       const { chartData: orderMetricsData, stats: orderMetricsStats } = prepareStackedBarChartData(orderMetricsDataRaindex);
 
       setOrderMetricsData(orderMetricsData)
@@ -155,10 +156,68 @@ const RechartsDashboard = () => {
       setVaultVolume(usedVaultBalance);
       setVaultBalance(combinedBalance);
 
+      const vaultBalanceData = await prepareVaultBalanceData();
+      setVaults(vaultBalanceData);
+
       setLoading(false);
     }catch(error){
       setError(error)
     }
+  }
+
+  const prepareVaultBalanceData = async () => {
+    const fetchVaultDetails = `
+        query VaultsQuery($tokenAddress: Bytes!) {
+          vaults(
+            where: {
+              token_: {
+                address: $tokenAddress
+              }
+            }
+          ) {
+            id
+            balance
+            token {
+              decimals
+              address
+              symbol
+            }
+          }
+        }
+      `;
+
+      const vaultBalanceChanges = `
+        query VaultBalanceChanges($vaultId: Bytes!) {
+          vaultBalanceChanges(
+            where: {vault_: {id: $vaultId}}
+          ) {
+            amount
+            timestamp
+            oldVaultBalance
+            newVaultBalance
+          }
+        }
+      `;
+
+    let vaultsData = await fetchAllPaginatedData(
+      networkConfig[tokenConfig[selectedToken].network].subgraphUrl,
+      fetchVaultDetails,
+      { tokenAddress: tokenConfig[selectedToken].address.toLowerCase() },
+      "vaults"
+    )
+
+    for(let i = 0 ; i< vaultsData.length; i++){
+      let vault = vaultsData[i]
+      let vaultBalanceChangesData = await fetchAllPaginatedData(
+        networkConfig[tokenConfig[selectedToken].network].subgraphUrl,
+        vaultBalanceChanges,
+        { vaultId: vault.id.toString() },
+        "vaultBalanceChanges"
+      )
+      vault["balanceChanges"] = vaultBalanceChangesData.sort((a, b) => parseInt(b.timestamp, 10) - parseInt(a.timestamp, 10));
+    }
+
+    return vaultsData
   }
 
   const prepareVaultDataAndStats = (tokenVaultSummary) => {
@@ -641,64 +700,367 @@ const RechartsDashboard = () => {
   
         {/* Chart Container for all bar charts */}
         <div className="space-y-6">
-          {dataSets.map((data, index) => (
-            <ResponsiveContainer key={index} width="100%" height={250}>
-              <BarChart
-                data={data}
-                margin={{ top: 10, right: 10, bottom: 20, left: 25 }}
-              >
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis
-                  label={{
-                    value: yAxisLabel,
-                    angle: -90,
-                    position: "insideLeft",
-                    style: { fontSize: "14px" },
-                  }}
-                  tickFormatter={formatValue} // Apply formatter for Y-axis ticks
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip formatter={formatValue} /> {/* Apply formatter for tooltips */}
-  
-                {/* Stacked Bars with Key-Value Labels */}
-                {colorKeys.map((key, keyIndex) => (
-                  <Bar
-                    key={key}
-                    dataKey={key}
-                    stackId="a"
-                    fill={bluePalette[keyIndex]} // Assign dynamic colors
+          {dataSets.map((data, index) => {
+            
+            return (
+              <div key={index} className="flex flex-col">
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart
+                    data={data}
+                    margin={{ top: 10, right: 10, bottom: 20, left: 25 }}
                   >
-                    <LabelList
-                      dataKey={key}
-                      position="outside"
-                      formatter={(value) => `${key}: ${formatValue(value)}`} // Key-value format with formatting
-                      style={{ fill: "#fff", fontSize: 12 }}
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <YAxis
+                      label={{
+                        value: yAxisLabel,
+                        angle: -90,
+                        position: "insideLeft",
+                        style: { fontSize: "14px" },
+                      }}
+                      tickFormatter={formatValue} // Apply formatter for Y-axis ticks
+                      tick={{ fontSize: 12 }}
                     />
-                  </Bar>
-                ))}
+                    <Tooltip formatter={formatValue} /> {/* Apply formatter for tooltips */}
   
-                {/* Total Stacked Value Labels */}
-                <Bar
-                  dataKey="total"
-                  stackId="a"
-                  fill="transparent" // No actual bar, just for labels
-                  isAnimationActive={false}
-                >
-                  <LabelList
-                    dataKey="total"
-                    position="outside" // Display total at the top of each bar
-                    style={{ fill: "#333", fontSize: 14, fontWeight: "bold" }}
-                    formatter={(value) => `Total: ${formatValue(value)}`} // Format for total
-                  />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ))}
+                    {/* Stacked Bars with Key-Value Labels */}
+                    {colorKeys.map((key, keyIndex) => (
+                      <Bar
+                        key={key}
+                        dataKey={key}
+                        stackId="a"
+                        fill={bluePalette[keyIndex]} // Assign dynamic colors
+                      >
+                        <LabelList
+                          dataKey={key}
+                          position="outside"
+                          formatter={(value) => `${key}: ${formatValue(value)}`} // Key-value format with formatting
+                          style={{ fill: "#fff", fontSize: 12 }}
+                        />
+                      </Bar>
+                    ))}
+  
+                    {/* Total Stacked Value Labels */}
+                    <Bar
+                      dataKey="total"
+                      stackId="a"
+                      fill="transparent" // No actual bar, just for labels
+                      isAnimationActive={false}
+                    >
+                      <LabelList
+                        dataKey="total"
+                        position="outside" // Display total at the top of each bar
+                        style={{ fill: "#333", fontSize: 14, fontWeight: "bold" }}
+                        formatter={(value) => `Total: ${formatValue(value)}`} // Format for total
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+  
+                {/* Bottom Progress Bar */}
+                <div className="mt-4">
+                  {colorKeys.map((key, keyIndex) => {
+                    const totalValue = data[0].total; // Total value for the day (all keys combined)
+                    const value = data[0][key]; // Value for the current key
+                    const percentage = (value / totalValue) * 100; // Calculate percentage
+
+                    return (
+                      <div key={keyIndex} className="flex items-center mb-2">
+                        <div className="w-20 text-sm font-semibold text-gray-700">{key}</div>
+                        <div className="flex-1 bg-gray-200 h-2 rounded-full mx-2 relative">
+                          <div
+                            className="h-2 rounded-full"
+                            style={{
+                              width: `${percentage}%`,
+                              backgroundColor: bluePalette[keyIndex % bluePalette.length],
+                            }}
+                          ></div>
+                        </div>
+                        <div className="w-12 text-sm text-gray-600">{`${formatValue(value)} ${percentage.toFixed(1)}%`}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
   };
   
+  
+const prepareStackedData = (vaults) => {
+  const tokenDecimals = tokenConfig[selectedToken].decimals;
+
+  const timestampMap = {};
+
+  vaults.forEach((vault) => {
+    const vaultId = vault.id;
+
+    // Process historical balance changes
+    vault.balanceChanges.forEach((change) => {
+      const timestamp = new Date(change.timestamp * 1000).toISOString(); // Use ISO format
+      if (!timestampMap[timestamp]) {
+        timestampMap[timestamp] = { timestamp }; // Keep as ISO string for sorting
+      }
+      timestampMap[timestamp][vaultId] =
+        parseFloat(ethers.utils.formatUnits(change.newVaultBalance, tokenDecimals).toString());
+    });
+
+    // Add the current balance for the vault
+    const currentTimestamp = new Date().toISOString(); // Use ISO format
+    if (!timestampMap[currentTimestamp]) {
+      timestampMap[currentTimestamp] = { timestamp: currentTimestamp };
+    }
+    timestampMap[currentTimestamp][vaultId] =
+      parseFloat(ethers.utils.formatUnits(vault.balance, tokenDecimals).toString());
+  });
+
+  // Ensure all timestamps have an entry for every vault, fill missing with 0
+  const vaultIds = vaults.map((vault) => vault.id);
+  Object.values(timestampMap).forEach((entry) => {
+    vaultIds.forEach((vaultId) => {
+      if (!entry[vaultId]) {
+        entry[vaultId] = 0;
+      }
+    });
+  });
+
+  // Convert timestampMap to a sorted array
+  return Object.values(timestampMap)
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)) // Sort properly
+    .map((entry) => ({
+      ...entry,
+      timestamp: new Date(entry.timestamp).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }), // Format for display
+    }));
+};
+
+const renderBalanceCharts = (vaults,title) => {
+  const tokenSymbol = tokenConfig[selectedToken].symbol;
+
+  // Prepare chart data
+  const chartData = prepareStackedData(vaults);
+  const vaultIds = vaults.map((vault) => vault.id);
+  const colors = generateColorPalette(vaultIds.length);
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <h3 className="text-lg font-semibold text-center text-gray-800 mb-4">
+        {title}
+      </h3>
+      <ResponsiveContainer width="100%" height={350}>
+        <AreaChart
+          data={chartData}
+          margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+        >
+          <defs>
+            {vaultIds.map((id, index) => (
+              <linearGradient
+                id={`colorVault${index}`}
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+                key={id}
+              >
+                <stop offset="5%" stopColor={colors[index]} stopOpacity={0.8} />
+                <stop offset="95%" stopColor={colors[index]} stopOpacity={0} />
+              </linearGradient>
+            ))}
+          </defs>
+          <XAxis dataKey="timestamp" tick={{ fontSize: 12 }} />
+          <YAxis
+            tickFormatter={(value) => `${value.toFixed(2)} ${tokenSymbol}`}
+            tick={{ fontSize: 12 }}
+          />
+          <CartesianGrid strokeDasharray="3 3" />
+          <Tooltip
+            formatter={(value, name) => [`${value.toFixed(2)} ${tokenSymbol}`, `Vault: ${name}`]}
+          />
+          {vaultIds.map((id, index) => (
+            <Area
+              type="monotone"
+              dataKey={id}
+              stackId="1"
+              stroke={colors[index]}
+              fillOpacity={1}
+              fill={`url(#colorVault${index})`}
+              key={id}
+            />
+          ))}
+        </AreaChart>
+      </ResponsiveContainer>
+      {/* Table Below the Chart */}
+      <div className="overflow-x-auto overflow-y-auto max-h-80 mt-6">
+        <table className="table-auto w-full border-collapse border border-gray-200">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="px-4 py-2 border border-gray-300 text-left text-sm font-semibold text-gray-700">
+                Vault ID
+              </th>
+              <th className="px-4 py-2 border border-gray-300 text-left text-sm font-semibold text-gray-700">
+                Token
+              </th>
+              <th className="px-4 py-2 border border-gray-300 text-left text-sm font-semibold text-gray-700">
+                Balance
+              </th>
+              <th className="px-4 py-2 border border-gray-300 text-left text-sm font-semibold text-gray-700">
+                Owner
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {vaults.map((vault, index) => (
+              <tr
+                key={index}
+                className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
+              >
+                <td className="px-4 py-2 border border-gray-300 text-sm text-gray-700">
+                  {vault.id}
+                </td>
+                <td className="px-4 py-2 border border-gray-300 text-sm text-gray-700">
+                  {vault.token.symbol}
+                </td>
+                <td className="px-4 py-2 border border-gray-300 text-sm text-gray-700">
+                  {formatValue(parseFloat(ethers.utils.formatUnits(vault.balance, vault.token.decimals)))}
+                </td>
+                <td className="px-4 py-2 border border-gray-300 text-sm text-gray-700">
+                  {vault.owner || "N/A"} {/* Assuming vault.owner exists */}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+
+const renderZeroVaultCounts = (vaults, title) => {
+  
+  const getZeroBalanceCounts = (vaults) => {
+    const zeroBalanceCounts = {};
+  
+    vaults.forEach((vault) => {
+      const balanceChanges = vault.balanceChanges;
+  
+      balanceChanges.forEach((change) => {
+        const date = new Date(change.timestamp * 1000).toISOString().split("T")[0]; // Extract YYYY-MM-DD
+  
+        if (change.newVaultBalance === "0") {
+          if (!zeroBalanceCounts[date]) {
+            zeroBalanceCounts[date] = 0;
+          }
+          zeroBalanceCounts[date] += 1;
+        }
+      });
+    });
+  
+    // Sort the entries by date
+    return Object.entries(zeroBalanceCounts)
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
+  };
+  
+
+  const zeroBalanceData = getZeroBalanceCounts(vaults);
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <h3 className="text-lg font-semibold text-center text-gray-800 mb-4">
+        {title}
+      </h3>
+      {/* Area Chart */}
+      <div className="overflow-x-auto max-w-full">
+        <ResponsiveContainer width="100%" height={350}>
+          <AreaChart
+            data={zeroBalanceData}
+            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+          >
+            <defs>
+              <linearGradient id="colorZeroVaults" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} />
+                <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 12 }}
+              tickFormatter={(tick) => {
+                const date = new Date(tick);
+                return date.toLocaleDateString("en-US", { month: "short", day: "numeric" }); // e.g., Jan 1
+              }}
+            />
+            <YAxis
+              tickFormatter={(value) => `${value}`}
+              tick={{ fontSize: 12 }}
+              label={{
+                value: "Zero Vaults Count",
+                angle: -90,
+                position: "insideLeft",
+                fontSize: 12,
+              }}
+            />
+            <CartesianGrid strokeDasharray="3 3" />
+            <Tooltip
+              formatter={(value) => [`${value}`, "Zero Vaults"]}
+              labelFormatter={(label) => {
+                const date = new Date(label);
+                return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="count"
+              stroke="#8884d8"
+              fillOpacity={1}
+              fill="url(#colorZeroVaults)"
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      {/* Table */}
+      <div className="overflow-x-auto overflow-y-scroll max-h-96 mt-6">
+        <table className="table-auto w-full border-collapse border border-gray-200">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="px-4 py-2 border border-gray-300 text-left text-sm font-semibold text-gray-700">
+                Date
+              </th>
+              <th className="px-4 py-2 border border-gray-300 text-left text-sm font-semibold text-gray-700">
+                Zero Vaults Count
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {zeroBalanceData.map((row, index) => (
+              <tr
+                key={index}
+                className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
+              >
+                <td className="px-4 py-2 border border-gray-300 text-sm text-gray-700">
+                  {new Date(row.date).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </td>
+                <td className="px-4 py-2 border border-gray-300 text-sm text-gray-700">
+                  {row.count}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  );
+};
+
 
   const formatValue = (value) => {
     if (value >= 1000000) {
@@ -908,14 +1270,14 @@ const RechartsDashboard = () => {
     totalRaindexVolumeAllTimeTokenDenominated
   ) => {
     const pieDataTrades = [
-      { name: "Raindex Trades For Duration", value: totalRaindexTrades, percentage: ((totalRaindexTrades / totalRaindexTradesAllTime) * 100).toFixed(1) },
-      { name: "Raindex Trades All Time", value: (totalRaindexTradesAllTime - totalRaindexTrades) , percentage: (((totalRaindexTradesAllTime - totalRaindexTrades) / totalRaindexTradesAllTime) * 100).toFixed(1) }
+      { name: "Raindex", value: totalRaindexTrades, percentage: ((totalRaindexTrades / totalRaindexTradesAllTime) * 100).toFixed(1) },
+      { name: "External", value: (totalRaindexTradesAllTime - totalRaindexTrades) , percentage: (((totalRaindexTradesAllTime - totalRaindexTrades) / totalRaindexTradesAllTime) * 100).toFixed(1) }
 
     ];
   
     const pieDataVolume = [
-      { name: "Raindex Volume For Duration", value: totalRaindexVolume, percentage: ((totalRaindexVolume / totalRaindexVolumeAllTimeTokenDenominated) * 100).toFixed(1) },
-      { name: "Raindex Volume All Time", value: (totalRaindexVolumeAllTimeTokenDenominated - totalRaindexVolume), percentage: (((totalRaindexVolumeAllTimeTokenDenominated - totalRaindexVolume) / totalRaindexVolumeAllTimeTokenDenominated) * 100).toFixed(1) },
+      { name: "Raindex", value: totalRaindexVolume, percentage: ((totalRaindexVolume / totalRaindexVolumeAllTimeTokenDenominated) * 100).toFixed(1) },
+      { name: "External", value: (totalRaindexVolumeAllTimeTokenDenominated - totalRaindexVolume), percentage: (((totalRaindexVolumeAllTimeTokenDenominated - totalRaindexVolume) / totalRaindexVolumeAllTimeTokenDenominated) * 100).toFixed(1) },
 
     ];
   
@@ -936,7 +1298,7 @@ const RechartsDashboard = () => {
           {/* Trades Pie Chart */}
           <div className="bg-white shadow-md rounded-lg p-5">
             <h3 className="text-lg font-semibold text-gray-700 text-center mb-4">
-              Trades Distribution
+              Trades Distribution All Time
             </h3>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
@@ -959,12 +1321,34 @@ const RechartsDashboard = () => {
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
+            <div className="space-y-3 mt-4">
+              {pieDataTrades.map((stat, index) => (
+                <div key={index}>
+                  <div className="flex justify-between mb-1">
+                    <span className="font-bold" style={{ color: COLORS[index] }}>
+                      {stat.name}
+                    </span>
+                    <span>{formatValue(stat.value)} - {stat.percentage}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-gray-200 rounded">
+                    <div
+                      className="h-full rounded"
+                      style={{
+                        width: `${stat.percentage}%`,
+                        backgroundColor: COLORS[index],
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
+          
   
           {/* Volume Pie Chart */}
           <div className="bg-white shadow-md rounded-lg p-5">
             <h3 className="text-lg font-semibold text-gray-700 text-center mb-4">
-              Volume Distribution
+              Volume Distribution All Time
             </h3>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
@@ -987,6 +1371,27 @@ const RechartsDashboard = () => {
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
+            <div className="space-y-3 mt-4">
+              {pieDataVolume.map((stat, index) => (
+                <div key={index}>
+                  <div className="flex justify-between mb-1">
+                    <span className="font-bold" style={{ color: COLORS[index] }}>
+                      {stat.name}
+                    </span>
+                    <span>${formatValue(stat.value)} - {stat.percentage}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-gray-200 rounded">
+                    <div
+                      className="h-full rounded"
+                      style={{
+                        width: `${stat.percentage}%`,
+                        backgroundColor: COLORS[index],
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
   
@@ -1024,13 +1429,13 @@ const RechartsDashboard = () => {
     const totalVolume = totalRaindexVolume + totalExternalVolume
 
     const pieDataTrades = [
-      { name: "Raindex Trades", value: totalRaindexTrades, percentage: ((totalRaindexTrades / totalTrades) * 100).toFixed(1) },
-      { name: "External Trades", value: totalExternalTrades, percentage: ((totalExternalTrades / totalTrades) * 100).toFixed(1) },
+      { name: "Raindex", value: totalRaindexTrades, percentage: ((totalRaindexTrades / totalTrades) * 100).toFixed(1) },
+      { name: "External", value: totalExternalTrades, percentage: ((totalExternalTrades / totalTrades) * 100).toFixed(1) },
     ];
   
     const pieDataVolume = [
-      { name: "Raindex Volume", value: totalRaindexVolume, percentage: ((totalRaindexVolume / totalVolume) * 100).toFixed(1) },
-      { name: "External Volume", value: totalExternalVolume, percentage: ((totalExternalVolume / totalVolume) * 100).toFixed(1) },
+      { name: "Raindex", value: totalRaindexVolume, percentage: ((totalRaindexVolume / totalVolume) * 100).toFixed(1) },
+      { name: "External", value: totalExternalVolume, percentage: ((totalExternalVolume / totalVolume) * 100).toFixed(1) },
     ];
   
     const COLORS = pieDataVolume.map((_, index) => generateColorPalette(2)[index]);
@@ -1040,13 +1445,13 @@ const RechartsDashboard = () => {
     return (
       <div className="p-5">
         {/* Header Section */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-2">
           <h1 className="text-2xl font-bold text-gray-800">Market Insights</h1>
           <p className="text-gray-600">Daily trading and volume statistics</p>
         </div>
   
         {/* Pie Charts Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {/* Trades Pie Chart */}
           <div className="bg-white shadow-md rounded-lg p-5">
             <h3 className="text-lg font-semibold text-gray-700 text-center mb-4">
@@ -1082,7 +1487,7 @@ const RechartsDashboard = () => {
                     <span className="font-bold" style={{ color: COLORS[index] }}>
                       {stat.name}
                     </span>
-                    <span>{stat.percentage}%</span>
+                    <span>{formatValue(stat.value)} - {stat.percentage}%</span>
                   </div>
                   <div className="w-full h-2 bg-gray-200 rounded">
                     <div
@@ -1132,7 +1537,7 @@ const RechartsDashboard = () => {
                     <span className="font-bold" style={{ color: COLORS[index] }}>
                       {stat.name}
                     </span>
-                    <span>{stat.percentage}%</span>
+                    <span>${formatValue(stat.value)} - {stat.percentage}%</span>
                   </div>
                   <div className="w-full h-2 bg-gray-200 rounded">
                     <div
@@ -1295,6 +1700,13 @@ const RechartsDashboard = () => {
                     )
                   
                 }
+                {
+                  renderBalanceCharts(vaults,`Vaults By Token`)
+                }
+                {
+                  renderZeroVaultCounts(vaults,`${tokenConfig[selectedToken].symbol.toUpperCase()} Zero Vault Balances`)
+                }
+                
               </div>
               <div className="mt-8 bg-gray-100 text-gray-700 text-base p-6 rounded-lg">
                 <h3 className="text-left font-semibold text-lg mb-4">Data Sources</h3>
